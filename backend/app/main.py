@@ -13,12 +13,14 @@ try:
     from app.routers.materias import router as materias_router
     from app.routers.profesores import router as profesores_router
     from app.routers.estudiantes import router as estudiantes_router
+    from app.routers.matriculas import router as matriculas_router
 except ImportError:
     from routers.facultades import router as facultades_router
     from routers.programas import router as programas_router
     from routers.materias import router as materias_router
     from routers.profesores import router as profesores_router
     from routers.estudiantes import router as estudiantes_router
+    from routers.matriculas import router as matriculas_router
 
 app = FastAPI(title="Matrícula Universitaria API")
 
@@ -35,6 +37,7 @@ app.include_router(programas_router)
 app.include_router(materias_router)
 app.include_router(profesores_router)
 app.include_router(estudiantes_router)
+app.include_router(matriculas_router)
 
 
 @app.get("/health")
