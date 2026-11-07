@@ -1,5 +1,8 @@
 
-from conexion import obtener_conexion
+try:
+    from app.database import obtener_conexion
+except ImportError:
+    from database import obtener_conexion
 
 def existe(tabla, columna, valor):
     """ Devuelve True si ya hay una fila con ese valor en esa columna. """
