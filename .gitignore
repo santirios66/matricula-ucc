@@ -1,0 +1,7 @@
+.env
+conexion.py
+database/respaldo_matricula.sql
+__pycache__/
+.venv/
+*.pdf
+node_modules/
