@@ -4,13 +4,15 @@
 # ==========================================
 
 import psycopg2
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 try:
     from app.database import obtener_conexion
+    from app.seguridad_api import require_admin
 except ImportError:
     from database import obtener_conexion
+    from seguridad_api import require_admin
 
 router = APIRouter(prefix="/facultades", tags=["facultades"])
 
@@ -39,7 +41,7 @@ def listar_facultades():
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def crear_facultad(facultad: FacultadCreate):
+def crear_facultad(facultad: FacultadCreate, _admin: dict = Depends(require_admin)):
     """Crea una facultad. Devuelve 409 si el ID ya existe."""
     id_facultad = facultad.id_facultad.strip()
     nombre_facultad = facultad.nombre_facultad.strip()
