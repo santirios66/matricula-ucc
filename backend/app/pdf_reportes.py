@@ -9,7 +9,10 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 
-from conexion import obtener_conexion
+try:
+    from app.database import obtener_conexion
+except ImportError:
+    from database import obtener_conexion
 
 def _consulta(sql, params=()):
     """ Ejecuta una consulta SELECT y devuelve todas las filas. """
