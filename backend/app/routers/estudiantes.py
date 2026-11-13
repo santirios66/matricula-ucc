@@ -56,6 +56,55 @@ def listar_estudiantes():
         conn.close()
 
 
+@router.get("/{cedula}/materias-disponibles", status_code=status.HTTP_200_OK)
+def materias_disponibles(cedula: str):
+    """Materias de la facultad del programa del estudiante, para el carrito."""
+    cedula = cedula.strip()
+    if not cedula:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La cédula no puede estar vacía",
+        )
+    conn = obtener_conexion()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT e.id_programa, p.id_facultad FROM estudiantes e "
+                "JOIN programas p ON p.id_programa = e.id_programa "
+                "WHERE e.id_estudiante = %s",
+                (cedula,),
+            )
+            fila = cur.fetchone()
+            if fila is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No existe el estudiante con cédula '{cedula}'",
+                )
+            id_programa, id_facultad = fila
+            cur.execute(
+                "SELECT id_materia, nombre_curso, creditos, cupos, horario, id_profesor "
+                "FROM materias WHERE id_facultad = %s ORDER BY id_materia",
+                (id_facultad,),
+            )
+            filas = cur.fetchall()
+        return [
+            {
+                "id_estudiante": cedula,
+                "id_programa": id_programa,
+                "id_facultad": id_facultad,
+                "id_materia": id_materia,
+                "nombre_curso": nombre_curso,
+                "creditos": creditos,
+                "cupos": cupos,
+                "horario": horario,
+                "id_profesor": id_profesor,
+            }
+            for id_materia, nombre_curso, creditos, cupos, horario, id_profesor in filas
+        ]
+    finally:
+        conn.close()
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def crear_estudiante(estudiante: EstudianteCreate, _admin: dict = Depends(require_admin)):
     """Crea un estudiante. Devuelve 409 si el ID ya existe y 404 si el programa no existe."""
