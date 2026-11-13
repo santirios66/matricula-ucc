@@ -6,13 +6,15 @@
 import uuid
 
 import psycopg2
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 try:
     from app.database import obtener_conexion
+    from app.seguridad_api import ROL_ADMIN, ROL_ESTUDIANTE, ROL_PROFESOR, autenticar, require_admin
 except ImportError:
     from database import obtener_conexion
+    from seguridad_api import ROL_ADMIN, ROL_ESTUDIANTE, ROL_PROFESOR, autenticar, require_admin
 
 router = APIRouter(prefix="/notas", tags=["notas"])
 
@@ -25,15 +27,36 @@ class NotaCreate(BaseModel):
 
 
 @router.get("/", status_code=status.HTTP_200_OK)
-def listar_notas():
-    """Devuelve todas las notas ordenadas por ID."""
+def listar_notas(sesion: dict = Depends(autenticar)):
+    """Devuelve las notas ordenadas por ID, filtradas por rol."""
     conn = obtener_conexion()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id_nota, id_matricula, id_materia, nota1, nota2, nota3, definitiva, estado "
-                "FROM notas ORDER BY id_nota"
-            )
+            if sesion["rol"] == ROL_ADMIN:
+                cur.execute(
+                    "SELECT id_nota, id_matricula, id_materia, nota1, nota2, nota3, definitiva, estado "
+                    "FROM notas ORDER BY id_nota"
+                )
+            elif sesion["rol"] == ROL_ESTUDIANTE:
+                cur.execute(
+                    "SELECT n.id_nota, n.id_matricula, n.id_materia, n.nota1, n.nota2, n.nota3, n.definitiva, n.estado "
+                    "FROM notas n JOIN matriculas m ON m.id_matricula = n.id_matricula "
+                    "WHERE m.cedula = %s ORDER BY n.id_nota",
+                    (sesion["id_persona"],),
+                )
+            elif sesion["rol"] == ROL_PROFESOR:
+                cur.execute(
+                    "SELECT n.id_nota, n.id_matricula, n.id_materia, n.nota1, n.nota2, n.nota3, n.definitiva, n.estado "
+                    "FROM notas n JOIN matriculas m ON m.id_matricula = n.id_matricula "
+                    "JOIN materias mat ON mat.id_materia = n.id_materia "
+                    "WHERE mat.id_profesor = %s ORDER BY n.id_nota",
+                    (sesion["id_persona"],),
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Rol no reconocido",
+                )
             filas = cur.fetchall()
         return [
             {

@@ -4,13 +4,15 @@
 # ==========================================
 
 import psycopg2
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 try:
     from app.database import obtener_conexion
+    from app.seguridad_api import require_admin
 except ImportError:
     from database import obtener_conexion
+    from seguridad_api import require_admin
 
 router = APIRouter(prefix="/programas", tags=["programas"])
 
@@ -44,7 +46,7 @@ def listar_programas():
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def crear_programa(programa: ProgramaCreate):
+def crear_programa(programa: ProgramaCreate, _admin: dict = Depends(require_admin)):
     """Crea un programa. Devuelve 409 si el ID ya existe y 404 si la facultad no existe."""
     id_programa = programa.id_programa.strip()
     nombre_programa = programa.nombre_programa.strip()

@@ -6,13 +6,15 @@
 from typing import Optional
 
 import psycopg2
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 try:
     from app.database import obtener_conexion
+    from app.seguridad_api import require_admin
 except ImportError:
     from database import obtener_conexion
+    from seguridad_api import require_admin
 
 router = APIRouter(prefix="/materias", tags=["materias"])
 
@@ -55,7 +57,7 @@ def listar_materias():
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def crear_materia(materia: MateriaCreate):
+def crear_materia(materia: MateriaCreate, _admin: dict = Depends(require_admin)):
     """Crea una materia. Devuelve 409 si el ID ya existe y 404 si la facultad o el profesor no existen."""
     id_materia = materia.id_materia.strip()
     nombre_curso = materia.nombre_curso.strip()

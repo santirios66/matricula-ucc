@@ -6,13 +6,15 @@
 from typing import Optional
 
 import psycopg2
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 try:
     from app.database import obtener_conexion
+    from app.seguridad_api import require_admin
 except ImportError:
     from database import obtener_conexion
+    from seguridad_api import require_admin
 
 router = APIRouter(prefix="/estudiantes", tags=["estudiantes"])
 
@@ -55,7 +57,7 @@ def listar_estudiantes():
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def crear_estudiante(estudiante: EstudianteCreate):
+def crear_estudiante(estudiante: EstudianteCreate, _admin: dict = Depends(require_admin)):
     """Crea un estudiante. Devuelve 409 si el ID ya existe y 404 si el programa no existe."""
     id_estudiante = estudiante.id_estudiante.strip()
     nombre = estudiante.nombre.strip()
