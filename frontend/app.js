@@ -18,7 +18,9 @@ async function api(path, options = {}) {
   if (!response.ok) {
    let message = body?.detail;
    if (Array.isArray(message)) message = message.map(e=>`${e.loc?.slice(1).join('.')}: ${e.msg}`).join(' · ');
-   throw new Error(typeof message === 'string' ? message : `Error ${response.status}. Revisa la terminal del backend y la conexión a PostgreSQL.`);
+   const error = new Error(typeof message === 'string' ? message : `Error ${response.status}. Revisa la terminal del backend y la conexión a PostgreSQL.`);
+   error.status = response.status;
+   throw error;
   }
   return body;
  } catch(error) {
@@ -27,6 +29,26 @@ async function api(path, options = {}) {
   throw error;
  } finally {clearTimeout(timer);}
 }
+// Credenciales del administrador: solo en memoria de la pestaña (los campos del
+// panel izquierdo). Nunca se guardan en localStorage, sessionStorage, cookies ni código.
+function adminHeaders(){
+ const usuario=($('#admin-usuario')?.value||'').trim(), clave=$('#admin-clave')?.value||'';
+ if(!usuario||!clave) return {};
+ return {'X-Usuario':usuario,'X-Clave':clave};
+}
+function mensaje401o403(status){
+ return status===401
+  ? 'Credenciales incorrectas o ausentes. Inicia sesión como administrador en el panel izquierdo (usuario y clave) y vuelve a intentarlo.'
+  : 'Solo una cuenta con rol Administrador puede crear registros. Inicia sesión como administrador en el panel izquierdo y vuelve a intentarlo.';
+}
+function actualizarAdminStatus(){
+ const usuario=($('#admin-usuario')?.value||'').trim(), clave=$('#admin-clave')?.value||'';
+ const activo=!!(usuario&&clave);
+ $('#admin-status').textContent=activo?`Sesión de administrador lista: ${usuario}.`:'Sin sesión de administrador: los registros se consultan, pero para crear se requiere una cuenta con rol Administrador.';
+ $('#admin-status').className=activo?'ok':'';
+}
+$('#admin-form').addEventListener('submit',e=>{e.preventDefault();const u=($('#admin-usuario').value||'').trim();const listo=!!(u&&$('#admin-clave').value);actualizarAdminStatus();notice(listo?`Credenciales aplicadas para ${u} (solo en memoria).`:'Completa usuario y clave para aplicar las credenciales.',listo);});
+$('#admin-logout').onclick=()=>{$('#admin-usuario').value='';$('#admin-clave').value='';actualizarAdminStatus();notice('Credenciales limpiadas de la memoria.',true);};
 function notice(message, success=false){$('#notice').textContent=message;$('#notice').className=success?'success':'';$('#notice').hidden=!message;}
 async function refresh(){
  if(loading)return; loading=true;$('#refresh').disabled=true;notice('');render();
@@ -92,8 +114,8 @@ $('#form').onsubmit=async e=>{
   payload[name]=type==='number'?Number(raw):(raw||null);
  }
  saving=true;$('#save').disabled=true;$('#save').textContent='Guardando…';$('#cancel').disabled=true;$('#close').disabled=true;
- try{await api(`/${key}/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();await refresh();if(!Object.keys(errors).length)notice('Registro guardado correctamente.',true);else notice('Registro guardado. No se pudo actualizar todo el directorio; pulsa Actualizar.');}
- catch(error){$('#form-error').textContent=error.message;}
+ try{await api(`/${key}/`,{method:'POST',headers:{'Content-Type':'application/json',...adminHeaders()},body:JSON.stringify(payload)});$('#dialog').close();await refresh();if(!Object.keys(errors).length)notice('Registro guardado correctamente.',true);else notice('Registro guardado. No se pudo actualizar todo el directorio; pulsa Actualizar.');}
+ catch(error){$('#form-error').textContent=(error.status===401||error.status===403)?mensaje401o403(error.status):error.message;}
  finally{saving=false;$('#save').disabled=false;$('#save').textContent='Guardar registro';$('#cancel').disabled=false;$('#close').disabled=false;}
 };
 $('#dialog').addEventListener('cancel',e=>{if(saving)e.preventDefault();});$('#close').onclick=closeForm;$('#cancel').onclick=closeForm;$('#refresh').onclick=refresh;
