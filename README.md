@@ -2,6 +2,8 @@
 
 Aplicación de escritorio en **Python** para gestionar matrículas, notas y reportes académicos, con **PostgreSQL** como base de datos. Proyecto académico de Ingeniería de Sistemas, Universidad Cooperativa de Colombia (UCC), Sede Cali.
 
+> **Novedad:** el proyecto ya tiene una **API FastAPI** (`backend/`) y un **portal web** (`frontend/`). Véase [`docs/api.md`](docs/api.md) para el contrato de la API y [`docs/frontend.md`](docs/frontend.md) para el portal.
+
 > Empezó como un ejercicio de registro de biblioteca con Excel. Por pedido del profesor se convirtió en un sistema con login por roles, carrito de matrícula, módulo de notas, reportes en PDF y base de datos relacional.
 
 ---
