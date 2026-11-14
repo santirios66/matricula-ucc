@@ -121,3 +121,48 @@ div.stat{cursor:default}
 /* ====== Logo de la barra lateral: logo/texto = volver al inicio; flecha = menú rápido ====== */
 .logo-flecha{position:absolute;top:0;right:0;width:26px;height:26px;padding:0;display:grid;place-items:center;background:rgba(255,255,255,.08);color:#bfd0dc;font-size:11px;line-height:1;border-radius:8px;transition:background-color .15s ease,color .15s ease}
 .logo-flecha:hover{filter:none;background:#23485b;color:#8ce4d8}
+
+/* ====== Botón flotante para alternar tema (esquina inferior derecha) ====== */
+#btn-tema{position:fixed;right:22px;bottom:22px;z-index:60;display:flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:24px;background:white;border:1px solid var(--line);color:#182f43;font-size:13px;font-weight:600;box-shadow:0 12px 28px rgba(16,44,64,.22)}
+#btn-tema:hover{filter:none;background:#eef5f9}
+@media(max-width:760px){#btn-tema{right:14px;bottom:14px;height:40px;padding:0 13px;font-size:12px}}
+
+/* ====== Tema oscuro (el estado vive solo en memoria: se reinicia al recargar) ====== */
+body.tema-oscuro{background:#0c2230;color:#d9e6ee}
+body.tema-oscuro header{background:#0f2938;border-bottom-color:#23414f;color:#9db4c0}
+body.tema-oscuro #session-greeting{color:#d9e6ee}
+body.tema-oscuro .panel,body.tema-oscuro .indicador,body.tema-oscuro .stat,body.tema-oscuro .carrito-item,body.tema-oscuro dialog{background:#133145;border-color:#28475a}
+body.tema-oscuro .panel{box-shadow:0 1px 2px rgba(0,0,0,.35),0 10px 24px rgba(0,0,0,.28)}
+body.tema-oscuro .indicador{box-shadow:0 1px 2px rgba(0,0,0,.35)}
+body.tema-oscuro #subtitle,body.tema-oscuro .panel-top p,body.tema-oscuro .muted,body.tema-oscuro .count,body.tema-oscuro .empty,body.tema-oscuro .barra-nombre,body.tema-oscuro .help p,body.tema-oscuro .ayuda-reportes p,body.tema-oscuro footer{color:#9db4c0}
+body.tema-oscuro .indicador strong,body.tema-oscuro .stat strong{color:#e6f1f7}
+body.tema-oscuro .indicador span{color:#8fa8b6}
+body.tema-oscuro .stat{color:#9db4c0}
+body.tema-oscuro .stat span:last-child{color:#8fa8b6}
+body.tema-oscuro td{border-top-color:#23414f}
+body.tema-oscuro th{background:#0f2a3b;color:#8fa8b6}
+body.tema-oscuro input,body.tema-oscuro select{background:#0f2a3b;border:1px solid #2a4a5e;color:#d9e6ee}
+body.tema-oscuro input::placeholder{color:#64818f}
+body.tema-oscuro label{color:#a9c2cf}
+body.tema-oscuro .chip{background:#1c3d52;color:#a9c2cf}
+body.tema-oscuro .chip-creditos{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .id{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .carrito-item:hover{border-color:#2e6a72}
+body.tema-oscuro .carrito-item:has(input:checked){background:#14424b}
+body.tema-oscuro .carrito-nombre{color:#e6f1f7}
+body.tema-oscuro .barra-pista{background:#1c3d52}
+body.tema-oscuro #connection{background:#12414a;color:#7fd8cc}
+body.tema-oscuro #notice{background:#3b2f12;color:#ecc76d}
+body.tema-oscuro #notice.success{background:#12352a;color:#8fd8b4}
+body.tema-oscuro .empty h3,body.tema-oscuro .help h3,body.tema-oscuro .ayuda-reportes h3{color:#c3d5e0}
+body.tema-oscuro .eyebrow{color:#4fc3c9}
+body.tema-oscuro .slash{color:#4a6274}
+body.tema-oscuro .help article,body.tema-oscuro .ayuda-reportes article{border-left-color:#2e6a72}
+body.tema-oscuro button.secondary{background:#1c3d52;color:#bfd0dc}
+body.tema-oscuro dialog{color:#d9e6ee;box-shadow:0 24px 100px rgba(0,0,0,.5)}
+body.tema-oscuro dialog::backdrop{background:#040f18b0}
+body.tema-oscuro footer{border-top-color:#23414f}
+body.tema-oscuro .indicador.ok strong,body.tema-oscuro #total-creditos{color:#5fce8f}
+body.tema-oscuro .indicador.malo strong{color:#ff9299}
+body.tema-oscuro #btn-tema{background:#133145;border-color:#2a4a5e;color:#d9e6ee;box-shadow:0 12px 28px rgba(0,0,0,.4)}
+body.tema-oscuro #btn-tema:hover{background:#1a3d54}

@@ -501,6 +501,22 @@ function vistaCuentas(){
  };
 }
 
+// ====== Botón flotante: alternar tema claro/oscuro (estado solo en memoria, sin localStorage/cookies) ======
+let temaOscuro=false;
+const btnTema=document.createElement('button');
+btnTema.id='btn-tema';btnTema.type='button';
+btnTema.setAttribute('aria-pressed','false');
+btnTema.title='Cambiar a tema oscuro';
+btnTema.innerHTML='<span aria-hidden="true">🌙</span><span class="tema-texto">&nbsp;Oscuro</span>';
+btnTema.addEventListener('click',()=>{
+  temaOscuro=!temaOscuro;
+  document.body.classList.toggle('tema-oscuro',temaOscuro);
+  btnTema.setAttribute('aria-pressed',String(temaOscuro));
+  btnTema.innerHTML=`<span aria-hidden="true">${temaOscuro?'☀':'🌙'}</span><span class="tema-texto">&nbsp;${temaOscuro?'Claro':'Oscuro'}</span>`;
+  btnTema.title=temaOscuro?'Estás en tema oscuro: pulsa para volver al claro':'Estás en tema claro: pulsa para ir al oscuro';
+});
+$('#app-workspace').appendChild(btnTema);
+
 // ====== Refresh y navegación ======
 $('#refresh').onclick=async()=>{if(loading)return;loading=true;$('#refresh').disabled=true;notice('');await refreshCatalogos();loading=false;$('#refresh').disabled=false;render();};
 window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){const origen=current;current=destino;animarSeccion(destino,origen);}});
