@@ -9,10 +9,10 @@ from pydantic import BaseModel, Field
 
 try:
     from app.seguridad import crear_hash, generar_clave_temporal, verificar_clave
-    from app.db_postgres import actualizar_clave, obtener_usuario
+    from app.db_postgres import actualizar_clave, existe, insertar, obtener_usuario
 except ImportError:
     from seguridad import crear_hash, generar_clave_temporal, verificar_clave
-    from db_postgres import actualizar_clave, obtener_usuario
+    from db_postgres import actualizar_clave, existe, insertar, obtener_usuario
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -32,6 +32,14 @@ class RestablecerClaveRequest(BaseModel):
     usuario_admin: str = Field(..., min_length=1)
     clave_admin: str = Field(..., min_length=1)
     usuario_objetivo: str = Field(..., min_length=1)
+
+
+class CuentaEstudianteRequest(BaseModel):
+    id_estudiante: str = Field(..., min_length=1)
+
+
+class CuentaProfesorRequest(BaseModel):
+    id_profesor: str = Field(..., min_length=1)
 
 
 @router.post("/login", status_code=status.HTTP_200_OK)
@@ -110,3 +118,41 @@ def restablecer_clave(datos: RestablecerClaveRequest):
     sal, password_hash = crear_hash(clave_temporal)
     actualizar_clave(usuario_objetivo, sal, password_hash, debe_cambiar=True)
     return {"usuario": usuario_objetivo, "clave_temporal": clave_temporal}
+
+
+def _crear_cuenta(id_persona: str, rol: str):
+    """Crea la cuenta de un estudiante o profesor con clave temporal (solo admin)."""
+    tabla = "estudiantes" if rol == "Estudiante" else "profesores"
+    columna = "id_estudiante" if rol == "Estudiante" else "id_profesor"
+    if not existe(tabla, columna, id_persona):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No existe {'el estudiante' if rol == 'Estudiante' else 'el profesor'} con ID '{id_persona}'",
+        )
+    if obtener_usuario(id_persona) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"La cuenta '{id_persona}' ya existe",
+        )
+    clave_temporal = generar_clave_temporal()
+    sal, password_hash = crear_hash(clave_temporal)
+    insertar(
+        "usuarios",
+        ["usuario", "sal", "password_hash", "rol", "id_persona", "debe_cambiar_clave"],
+        [id_persona, sal, password_hash, rol, id_persona, True],
+    )
+    return {"usuario": id_persona, "rol": rol, "clave_temporal": clave_temporal}
+
+
+@router.post("/crear-cuenta-estudiante", status_code=status.HTTP_201_CREATED)
+def crear_cuenta_estudiante(datos: CuentaEstudianteRequest, _admin: dict = Depends(require_admin)):
+    """Solo Administrador: crea la cuenta de un estudiante con clave temporal."""
+    id_estudiante = datos.id_estudiante.strip()
+    return _crear_cuenta(id_estudiante, "Estudiante")
+
+
+@router.post("/crear-cuenta-profesor", status_code=status.HTTP_201_CREATED)
+def crear_cuenta_profesor(datos: CuentaProfesorRequest, _admin: dict = Depends(require_admin)):
+    """Solo Administrador: crea la cuenta de un profesor con clave temporal."""
+    id_profesor = datos.id_profesor.strip()
+    return _crear_cuenta(id_profesor, "Profesor")
