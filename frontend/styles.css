@@ -43,12 +43,15 @@
 .side-bottom-note{color:#7f9aac;font-size:11px;line-height:1.7;margin-top:12px}
 .carrito{display:grid;gap:10px;padding:4px 26px 10px}.carrito-item{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:14px 18px;cursor:pointer;background:white;transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease}.carrito-item:hover{border-color:#9ed6d1}.carrito-item:has(input:checked){border-color:var(--teal);background:#f2faf9;box-shadow:inset 0 0 0 1px var(--teal)}.carrito-item input{width:18px;height:18px;accent-color:var(--teal);cursor:pointer;margin:0}.carrito-info{display:grid;gap:0}.carrito-nombre{font-size:14.5px;font-weight:600;color:#182f43;line-height:1.4}.carrito-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chip{font-size:11px;font-weight:600;color:#4a6274;background:#eef3f6;border-radius:20px;padding:4px 10px;letter-spacing:.3px;white-space:nowrap}.chip-creditos{background:#eaf5f3;color:#1f6b5e}#total-creditos{color:#2E8B57}.guardar-nota{padding:8px 12px;font-size:13px}
 @media(max-width:760px){#connection{display:none}.session-chip{gap:10px}} 
-/* ====== Transición entre secciones (respeta prefers-reduced-motion) ====== */
-#view{transition:opacity .2s ease,transform .2s ease}
-#view.seccion-saliendo{opacity:0;transform:translateY(8px)}
-#view.seccion-entrando{animation:entrada-seccion .25s ease}
-@keyframes entrada-seccion{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){#view{transition:none}#view.seccion-entrando{animation:none}}
+/* ====== Transición direccional entre secciones (respeta prefers-reduced-motion) ====== */
+#view{transition:opacity .22s ease,transform .22s ease}
+#view.seccion-salida-izq{opacity:0;transform:translateX(-24px)}
+#view.seccion-salida-der{opacity:0;transform:translateX(24px)}
+#view.seccion-entrada-der{animation:entrada-der .28s ease-out}
+#view.seccion-entrada-izq{animation:entrada-izq .28s ease-out}
+@keyframes entrada-der{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@keyframes entrada-izq{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){#view{transition:none}#view.seccion-entrada-der,#view.seccion-entrada-izq{animation:none}}
 
 /* ====== Franja de indicadores ====== */
 .franja{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 4px}

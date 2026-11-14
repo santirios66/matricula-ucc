@@ -54,22 +54,30 @@ function mensajeRol(error){
 }
 function notice(message, success=false){$('#notice').textContent=message;$('#notice').className=success?'success':'';$('#notice').hidden=!message;}
 
-// ====== Transición entre secciones (respeta prefers-reduced-motion) ======
+// ====== Transición direccional entre secciones (respeta prefers-reduced-motion) ======
 const sinAnimacion=()=>!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 let animPendiente=null;
-function animarSeccion(){
+function indiceSeccion(key){return navItems().findIndex(([k])=>k===key);}
+function animarSeccion(destino,origen){
   const vista=$('#view');
   clearTimeout(animPendiente);
   if(sinAnimacion()){render();return;}
-  vista.classList.remove('seccion-entrando');
-  vista.classList.add('seccion-saliendo');
+  // Dirección según el orden de la sección en el menú del rol:
+  // a una sección posterior sale hacia la izquierda y entra desde la derecha; a una anterior, al revés
+  const adelante=indiceSeccion(destino)>=indiceSeccion(origen);
+  const salida=adelante?'seccion-salida-izq':'seccion-salida-der';
+  const entrada=adelante?'seccion-entrada-der':'seccion-entrada-izq';
+  vista.classList.remove('seccion-salida-izq','seccion-salida-der','seccion-entrada-der','seccion-entrada-izq');
+  vista.classList.add(salida);
   animPendiente=setTimeout(()=>{
     render();
-    vista.classList.remove('seccion-saliendo');
-    vista.classList.add('seccion-entrando');
-  },200);
+    vista.classList.remove('seccion-salida-izq','seccion-salida-der');
+    vista.classList.add(entrada);
+  },220);
 }
-$('#view').addEventListener('animationend',e=>{if(e.animationName==='entrada-seccion')$('#view').classList.remove('seccion-entrando');});
+$('#view').addEventListener('animationend',e=>{
+  if(e.animationName==='entrada-der'||e.animationName==='entrada-izq')$('#view').classList.remove('seccion-entrada-der','seccion-entrada-izq');
+});
 
 // ====== Franja de indicadores y estados vacíos ======
 function franja(items){
@@ -241,8 +249,9 @@ function table(key,rows){const m=modules[key];return `<div class="table-wrap"><t
 function go(key){
   if(!SESION) return;
   if(key===current){render();return;}
+  const origen=current;
   current=key;location.hash=key;
-  animarSeccion();
+  animarSeccion(key,origen);
 }
 function navItems(){return MENUS[SESION?.rol]||[['resumen','Resumen','◈']];}
 function render(){
@@ -488,5 +497,5 @@ function vistaCuentas(){
 
 // ====== Refresh y navegación ======
 $('#refresh').onclick=async()=>{if(loading)return;loading=true;$('#refresh').disabled=true;notice('');await refreshCatalogos();loading=false;$('#refresh').disabled=false;render();};
-window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){current=destino;animarSeccion();}});
+window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){const origen=current;current=destino;animarSeccion(destino,origen);}});
 current='resumen';
