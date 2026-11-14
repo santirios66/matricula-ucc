@@ -117,3 +117,7 @@ div.stat{cursor:default}
 .barra-valor{font-size:13px;font-weight:700;color:#182f43;text-align:right}
 @media(max-width:760px){.barra-fila{grid-template-columns:minmax(96px,150px) 1fr 36px;gap:10px}}
 @media(prefers-reduced-motion:reduce){.barra{transition:none}}
+
+/* ====== Logo de la barra lateral: logo/texto = volver al inicio; flecha = menú rápido ====== */
+.logo-flecha{position:absolute;top:0;right:0;width:26px;height:26px;padding:0;display:grid;place-items:center;background:rgba(255,255,255,.08);color:#bfd0dc;font-size:11px;line-height:1;border-radius:8px;transition:background-color .15s ease,color .15s ease}
+.logo-flecha:hover{filter:none;background:#23485b;color:#8ce4d8}

@@ -194,9 +194,15 @@ $('#logout').onclick=()=>{
   $('#login-error').textContent='';location.hash='';
 };
 
-// ====== Menú rápido del logo (atajo; la barra lateral sigue igual) ======
+// ====== Logo de la barra lateral: clic en logo/texto = volver al inicio del rol; la flecha pequeña abre el menú rápido ======
+(function(){
+  const zona=$('.brand-zona'), btnViejo=$('#logo-menu-btn');
+  if(!zona||!btnViejo) return;
+  zona.innerHTML=`<button id="logo-inicio" class="brand" type="button" title="Volver al inicio">${btnViejo.innerHTML}</button><button id="logo-menu-btn" class="logo-flecha" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="logo-menu" aria-label="Abrir menú rápido del logo">▾</button><div id="logo-menu" role="menu" aria-label="Accesos rápidos" hidden></div>`;
+})();
 const logoBtn=$('#logo-menu-btn'), logoMenu=$('#logo-menu');
 function cierraLogoMenu(){logoMenu.hidden=true;logoBtn.setAttribute('aria-expanded','false');}
+$('#logo-inicio').addEventListener('click',()=>{cierraLogoMenu();go('resumen');});
 logoBtn.addEventListener('click',()=>{
   if(!logoMenu.hidden){cierraLogoMenu();return;}
   logoMenu.innerHTML=navItems().map(([k,t,i])=>`<button type="button" role="menuitem" data-page="${k}"><span aria-hidden="true">${i}</span>${esc(t)}</button>`).join('');
