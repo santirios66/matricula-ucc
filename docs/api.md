@@ -278,3 +278,43 @@ Invoke-RestMethod http://localhost:8000/facultades/                          # p
 Invoke-RestMethod -Method Post -Uri http://localhost:8000/matriculas/lote -Headers $h_est `
   -ContentType "application/json" -Body '{"cedula":"1001","periodo":"2026-2","id_materias":["M01","M02","M03"]}'
 ```
+
+---
+
+# Actualización: cupos, periodos, roles y creación de cuentas
+
+Agregados en `feature/sistema-completo`. Todos los POST de matrícula y notas exigen credenciales (`X-Usuario`/`X-Clave`); los errores de rol (403) se evalúan **antes** de las validaciones de base de datos.
+
+## `GET /periodos/` (nuevo)
+- **Rol:** público (lo necesita el panel admin y el carrito del estudiante).
+- **Salida 200:** `[{"periodo":"2026-2","fecha_inicio":"2026-11-01","fecha_fin":"2026-12-20"}]` (fechas `YYYY-MM-DD`).
+
+## `POST /periodos/` (nuevo)
+- **Rol:** solo `Administrador` (403 si no).
+- **Entrada:** `{"periodo":"2026-3","fecha_inicio":"2027-01-10","fecha_fin":"2027-03-01"}`.
+- **Salida 201:** el periodo creado.
+- **Errores:** `403` no admin · `409` periodo duplicado · `422` fecha inválida o inicio > fin.
+
+## Reglas nuevas en matrículas (`POST /matriculas/` y `POST /matriculas/lote`)
+- **Rol:** `Estudiante` solo puede matricular **su propia cédula** (`usuarios.id_persona`); otra → **403**. `Administrador` sin restricción.
+- **Periodo:** debe existir en la tabla `periodos` (migración `V3__periodos.sql`) y la fecha actual debe estar dentro de `[fecha_inicio, fecha_fin]`; si no → **422** con el rango y la fecha de hoy.
+- **Cupos:** `materias.cupos` menos matriculados de esa materia en el periodo (`COUNT` en SQL; no se descuenta en `materias`); sin cupo → **409** con el **nombre de la materia**. En el lote se valida todo antes de insertar: si una materia no tiene cupo, **no se guarda ninguna** (transacción única).
+- **Otros errores:** `409` duplicado estudiante+materia+periodo · `409` supera 19 créditos · `422` total menor a 6 (solo lote) · `404` estudiante o materia inexistente.
+
+## Reglas nuevas en notas (`POST /notas/`)
+- **Rol:** requiere sesión. `Estudiante` → siempre **403**. `Profesor` solo registra notas en matrículas de materias donde `materias.id_profesor = su id_persona`; otra materia → **403**. `Administrador` sin restricción.
+- `GET /notas/`: estudiante ve solo sus notas; profesor, solo las de sus materias.
+- **Errores:** `404` matrícula inexistente · `409` ya tiene nota · `422` notas fuera de 0.0–5.0.
+
+## `POST /auth/crear-cuenta-estudiante` (nuevo, solo admin)
+- **Entrada:** `{"id_estudiante":"1002"}`.
+- **Salida 201:** `{"usuario":"1002","rol":"Estudiante","clave_temporal":"********"}` — la clave se muestra **una sola vez**; la cuenta se crea con `debe_cambiar_clave=true`.
+- **Errores:** `403` no admin · `404` el estudiante no existe · `409` la cuenta ya existe.
+
+## `POST /auth/crear-cuenta-profesor` (nuevo, solo admin)
+- **Entrada:** `{"id_profesor":"PR04"}`.
+- **Salida 201:** `{"usuario":"PR04","rol":"Profesor","clave_temporal":"********"}`.
+- **Errores:** `403` no admin · `404` el profesor no existe · `409` la cuenta ya existe.
+
+## Recibo de matrícula con radicado (`GET /pdf/matricula/{cedula}`)
+El encabezado del PDF ahora incluye: **Radicado** (primeros 8 caracteres del `id_matricula` del primer registro del periodo, en mayúsculas), **Periodo**, **Fecha de matrícula** y la tabla con **TOTAL CRÉDITOS**.

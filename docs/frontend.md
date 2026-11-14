@@ -17,26 +17,53 @@ python frontend/servir.py
 
 Abre **exactamente** `http://localhost:5173` (CORS del backend solo autoriza ese origen). No abras `index.html` con doble clic ni uses Live Server. Detén cada servidor con Ctrl+C.
 
-## 2. Qué hace el portal hoy
+## 2. Inicio de sesión
 
-- **Consulta y registro** de los cinco catálogos: facultades, programas, profesores, estudiantes y materias (`GET` y `POST` en sus rutas reales del repo: `backend/app/routers/`).
-- **Sesión de administrador en memoria:** los `POST` de catálogo exigen los encabezados `X-Usuario` y `X-Clave` (control de acceso por rol de `backend/app/seguridad_api.py`). El panel izquierdo del portal pide usuario y clave del administrador y los envía en cada `POST`.
-- **Las credenciales solo viven en la memoria de la pestaña** (campos del panel). No se guardan en `localStorage`, `sessionStorage`, cookies ni en el código. El botón "Limpiar" las borra al instante.
-- Si la API responde **401 o 403**, el formulario muestra un mensaje claro sobre iniciar sesión como administrador.
-- Búsqueda, totales, formularios con relaciones (programa→facultad, materia→facultad+profesor), estados de carga y errores visibles.
+Al abrir solo se ve la **pantalla de acceso**: logo, un texto corto y el formulario de usuario y clave. El menú y las demás pantallas están ocultos hasta iniciar sesión.
 
-## 3. Rutas reales del repo
+- **Clic sin sesión:** cualquier clic en menús o botones antes de entrar muestra el aviso **"Inicia sesión para continuar"** y no cambia de pantalla.
+- `POST /auth/login` con usuario y clave:
+  - **401** → "Usuario o contraseña incorrectos" (mensaje genérico; no abre sesión).
+  - **200 con `debe_cambiar_clave: true`** → diálogo obligatorio de cambio de clave (`POST /auth/cambiar-clave`); no se entra al menú hasta cambiarla.
+  - **200 normal** → se guarda en memoria el `usuario`, `rol` e `id_persona` que devolvió la API y se muestra el menú del rol. Esa respuesta es la única fuente de verdad del rol.
+- **Credenciales solo en memoria** (variable `SESION` del JS): nada en `localStorage`, `sessionStorage` ni cookies. **Cerrar sesión** borra la memoria y vuelve a la pantalla de acceso.
+- Las peticiones autenticadas envían los encabezados `X-Usuario` y `X-Clave` (incluidas las descargas de PDF, con `fetch` + blob).
+- Si la API responde **403**, el portal muestra "No tienes permiso para esta acción" y no cambia de pantalla. Para los demás errores se muestra el `detail` que devuelve la API.
+
+## 3. Qué ve cada rol
+
+### Administrador
+Menú: **Resumen · Facultades · Programas · Materias · Profesores · Estudiantes · Periodos · Cuentas**.
+- Resumen con totales de cada catálogo y accesos directos.
+- Registro en los seis catálogos (incluido **Periodos** de matrícula, `POST /periodos/`).
+- **Cuentas:** crear cuenta de estudiante (`POST /auth/crear-cuenta-estudiante`) o de profesor (`POST /auth/crear-cuenta-profesor`) y restablecer la clave de cualquier usuario. La clave temporal se muestra una sola vez en pantalla.
+
+### Estudiante
+Menú: **Matricular · Mis notas · Mis documentos**.
+- **Matricular:** carrito con `GET /estudiantes/{cedula}/materias-disponibles` (materias de su facultad), **total de créditos en vivo** (verde entre 6 y 19, rojo fuera del rango) y confirmación con `POST /matriculas/lote`.
+- **Mis notas:** `GET /notas/` (la API solo devuelve las suyas).
+- **Mis documentos:** recibo de matrícula y reporte de notas en PDF con su propia cédula.
+
+### Profesor
+Menú: **Ingresar notas · Reportes**.
+- **Ingresar notas:** elige una de **sus** materias (las que tienen `id_profesor` = su `id_persona`), ve los estudiantes matriculados en esa materia y guarda las tres notas con `POST /notas/` (la API rechaza materias ajenas con 403).
+- **Reportes:** PDF de notas y recibo de matrícula de sus estudiantes.
+
+Ningún estudiante o profesor ve formularios de catálogo: el menú se construye desde `MENUS[rol]` en `frontend/app.js`.
+
+## 4. Rutas reales del repo
 
 ```
 MatriculaUniversitaria_v3/
-├── backend/            # API FastAPI (no se toca desde esta rama)
+├── backend/            # API FastAPI
 │   ├── app/
 │   │   ├── main.py             # FastAPI + CORS 5173 + routers
 │   │   ├── database.py         # conexión con .env
 │   │   ├── seguridad_api.py    # control de acceso por rol (X-Usuario / X-Clave)
+│   │   ├── pdf_reportes.py     # recibos y reportes con radicado
 │   │   └── routers/            # facultades, programas, materias, profesores,
-│   │                           # estudiantes, matriculas, notas, auth, pdf
-│   └── migrations/     # V1 tablas, V2 datos de prueba
+│   │                           # estudiantes, matriculas, notas, auth, pdf, periodos
+│   └── migrations/     # V1 tablas, V2 datos de prueba, V3 periodos
 ├── frontend/           # este portal (index.html, app.js, styles.css, config.js, servir.py)
 ├── docs/               # api.md (contrato de la API) y frontend.md (este archivo)
 ├── escritorio/         # app Tkinter original, solo referencia
@@ -46,34 +73,17 @@ MatriculaUniversitaria_v3/
 - `frontend/config.js` apunta a `http://localhost:8000` (`API_BASE_URL`).
 - `frontend/servir.py` sirve la carpeta en el puerto 5173 con `http.server`.
 
-## 4. Probar la sesión de administrador
-
-1. Arranca API y portal (paso 1). En el panel izquierdo escribe el usuario y la clave del administrador y pulsa **Aplicar credenciales** (verás "solo en memoria").
-2. Ve a **Facultades → + Registrar facultad**, crea `F02 · Salud` → se guarda (201).
-3. Repite el mismo registro → el API devuelve **409** y el portal muestra `Ya existe una facultad con ID 'F02'`.
-4. Pulsa **Limpiar** en el panel e intenta crear otra facultad → **401/403** con el mensaje de iniciar sesión como administrador.
-
 ## 5. Diferencias corregidas respecto al ZIP original
 
-- El ZIP afirmaba que *la API no tiene autenticación*: ya no es cierto. La API ahora tiene `/auth/*` y control de acceso por rol; los `POST` de catálogo exigen credenciales de Administrador. El portal las envía y maneja 401/403. No se copió esa afirmación ni `REVISION.md`/`LEEME_PRIMERO.md` del ZIP.
+- El ZIP afirmaba que *la API no tiene autenticación*: ya no es cierto. La API ahora tiene `/auth/*` y control de acceso por rol; el portal inicia sesión de verdad (`POST /auth/login`) y envía `X-Usuario`/`X-Clave` en cada petición autenticada.
 - El ZIP usaba rutas `matricula-ucc-main/backend` y `matricula-ucc-main/`: en el repo no existe ese árbol; la API vive en `backend/` y el portal en `frontend/` (guía actualizada).
 - No se copiaron archivos de la versión vieja: `matricula-ucc-main/`, `pruebas/`, `iniciar_backend.bat`, `backend.env.example`. El arranque es `uvicorn` desde `backend/` + `python frontend/servir.py`.
+- El texto "Sesión de administrador lista" y cualquier mensaje que afirmara un rol sin validarlo se eliminaron: el rol ahora lo decide la respuesta de `/auth/login`.
 
-## 6. Pendiente del portal (la API ya lo tiene; no implementado aún)
+## 6. Flujo de demo sugerido
 
-Estos módulos existen en `backend/app/routers/` y el portal todavía no muestra pantallas para ellos:
-
-| Pantalla faltante | Endpoint que usaría | Regla de negocio | ¿Requiere sesión? |
-|---|---|---|---|
-| Matrículas (listado, registro individual) | `GET /matriculas/`, `POST /matriculas/` | Máx. 19 créditos por periodo por estudiante (calculado con `SUM` en SQL); no repetir materia en el mismo periodo | `Estudiante` ve solo lo suyo (`id_persona` = cédula); `Profesor` solo matrículas de sus materias; `Administrador` todo → **requiere sesión** |
-| Carrito de matrícula (lote) | `POST /matriculas/lote` | Total del periodo entre **6 y 19 créditos**; transacción única: si algo falla no guarda nada; materias repetidas → 409 | Igual que arriba → **requiere sesión** |
-| Notas | `GET /notas/`, `POST /notas/` | Cada nota 0.0–5.0; definitiva = promedio (Python, 2 decimales); Aprobado si `>= 3.0`; una sola nota por matrícula | `Profesor` solo notas de sus materias; `Estudiante` solo las suyas → **requiere sesión** |
-| Materias disponibles del estudiante | `GET /estudiantes/{cedula}/materias-disponibles` | Se filtra por la **facultad del programa** del estudiante (JOIN `estudiantes → programas → materias`) | **Pública** hoy en la API (el portal puede llamarla sin encabezados) |
-| Login | `POST /auth/login` | Mensaje genérico 401; devuelve rol e `id_persona` sin sal ni hash | **Pública** |
-| Cambio/restablecimiento de clave | `POST /auth/cambiar-clave`, `POST /auth/restablecer-clave` | Nueva clave ≥ 8 caracteres y distinta; restablecer solo admin genera clave temporal | Cambiar: cualquier usuario; restablecer: **solo admin** |
-| Reportes PDF | `GET /pdf/matricula/{cedula}`, `GET /pdf/notas/{cedula}` | Estudiante solo su cédula; profesor solo estudiantes matriculados en sus materias; descarga como archivo | **Requiere sesión** (403 si no) |
-
-**Los dos más importantes para una demo de clase:**
-
-1. **Carrito de matrícula (`POST /matriculas/lote` + `GET /estudiantes/{cedula}/materias-disponibles`):** es el corazón del sistema (de ahí el nombre) y enseña en una sola demo la regla de 6–19 créditos, el filtro por facultad y la transacción "todo o nada". Fallar a propósito (lote de 3 créditos → 422) demuestra validación real.
-2. **Login (`POST /auth/login`) + Notas con filtro por rol (`GET/POST /notas/`):** muestra la capa de seguridad que se construyó en el backend (hash con sal, mensaje genérico 401, un profesor solo ve sus materias). En la demo se ve el mismo endpoint devolviendo datos distintos según el rol, lo que justifica los encabezados que el portal ya envía en los POST.
+1. **Admin** entra → crea una facultad, un programa, un profesor, un estudiante y un periodo (o usa los datos de V2/BD).
+2. En **Cuentas**, crea la cuenta de ese estudiante → la clave temporal se muestra una vez.
+3. **Estudiante** entra con la clave temporal → cambia la clave (obligatorio) → arma el carrito (total entre 6 y 19) → confirma → descarga su recibo (radicado + periodo).
+4. Intenta matricular fuera del rango de créditos o una materia sin cupo → la API responde 422/409 con el mensaje.
+5. **Profesor** entra → elige su materia → registra notas → el estudiante las ve en **Mis notas**.
