@@ -54,6 +54,44 @@ function mensajeRol(error){
 }
 function notice(message, success=false){$('#notice').textContent=message;$('#notice').className=success?'success':'';$('#notice').hidden=!message;}
 
+// ====== Transición entre secciones (respeta prefers-reduced-motion) ======
+const sinAnimacion=()=>!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+let animPendiente=null;
+function animarSeccion(){
+  const vista=$('#view');
+  clearTimeout(animPendiente);
+  if(sinAnimacion()){render();return;}
+  vista.classList.remove('seccion-entrando');
+  vista.classList.add('seccion-saliendo');
+  animPendiente=setTimeout(()=>{
+    render();
+    vista.classList.remove('seccion-saliendo');
+    vista.classList.add('seccion-entrando');
+  },200);
+}
+$('#view').addEventListener('animationend',e=>{if(e.animationName==='entrada-seccion')$('#view').classList.remove('seccion-entrando');});
+
+// ====== Franja de indicadores y estados vacíos ======
+function franja(items){
+  return `<section class="franja" aria-label="Resumen de la sección">${items.map(i=>`<div class="indicador${i.clase?' '+i.clase:''}"><span>${esc(i.etiqueta)}</span><strong${i.id?` id="${i.id}"`:''}>${esc(i.valor)}</strong></div>`).join('')}</section>`;
+}
+function vacio(icono,titulo,frase){
+  return `<div class="empty"><span class="empty-icono" aria-hidden="true">${icono}</span><h3>${esc(titulo)}</h3><p>${esc(frase)}</p></div>`;
+}
+// Catálogos relacionados que se muestran junto al actual (admin)
+const REL_ADMIN={facultades:['programas','materias'],programas:['facultades','materias'],materias:['profesores','estudiantes'],profesores:['materias','estudiantes'],estudiantes:['programas','profesores'],periodos:['materias','estudiantes']};
+function franjaAdmin(key){
+  const m=modules[key];
+  if(!m) return '';
+  const items=[{etiqueta:m.title,valor:(data[key]||[]).length}];
+  for(const k of REL_ADMIN[key]||[]) items.push({etiqueta:modules[k].title,valor:(data[k]||[]).length});
+  return franja(items);
+}
+function pintaFranja(key){const zona=$('#franja-zone');if(zona&&current===key)zona.innerHTML=franjaAdmin(key);}
+async function asegurarCatalogos(){
+  if(CATALOGOS.some(k=>!data[k])) await refreshCatalogos();
+}
+
 // ====== Catálogos usados por varios módulos ======
 const CATALOGOS = ['facultades','programas','materias','profesores','estudiantes','periodos'];
 async function refreshCatalogos(){
@@ -187,14 +225,19 @@ function display(row,field){return field[4]?relatedLabel(field[4],row[field[0]])
 function table(key,rows){const m=modules[key];return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
 
 // ====== Render principal ======
-function go(key){current=key;location.hash=key;render();}
+function go(key){
+  if(!SESION) return;
+  if(key===current){render();return;}
+  current=key;location.hash=key;
+  animarSeccion();
+}
 function navItems(){return MENUS[SESION?.rol]||[['resumen','Resumen','◈']];}
 function render(){
  if(!SESION) return;
  const titulo={resumen:'Resumen académico',matricular:'Matricular',misnotas:'Mis notas',docs:'Mis documentos',ingresarnotas:'Ingresar notas',reportes:'Reportes',cuentas:'Cuentas'};
  $('#breadcrumb').textContent=titulo[current]||modules[current]?.title||'Resumen';
  $('#title').textContent=titulo[current]||modules[current]?.title||'Resumen académico';
- $('#subtitle').textContent={resumen:'Todo según tu rol: '+SESION.rol,matricular:'Arma tu carrito y confirma: total entre 6 y 19 créditos.',misnotas:'Tus calificaciones registradas.',docs:'Descarga tus reportes en PDF.',ingresarnotas:'Califica a los estudiantes de tus materias.',reportes:'PDF de tus estudiantes.',cuentas:'Crea cuentas y restablece claves.',periodos:'Ventanas de matrícula.'}[current]||modules[current]?.description||'';
+ $('#subtitle').textContent={resumen:'Todo según tu rol: '+SESION.rol,matricular:'Arma tu carrito y confirma: total entre 6 y 19 créditos.',misnotas:'Tus calificaciones registradas.',docs:'Descarga tus reportes en PDF.',ingresarnotas:'Califica a los estudiantes de tus materias.',reportes:'Reporte de notas de tus estudiantes.',cuentas:'Crea cuentas y restablece claves.',periodos:'Ventanas de matrícula.'}[current]||modules[current]?.description||'';
  $('#nav').innerHTML=navItems().map(([k,t,i])=>`<button data-page="${k}" class="${k===current?'active':''}" ${k===current?'aria-current="page"':''}><span aria-hidden="true">${i}</span>${t}</button>`).join('');
  $('#nav').querySelectorAll('button').forEach(b=>b.onclick=()=>go(b.dataset.page));
  const vistas={resumen:vistaResumen,matricular:vistaMatricular,misnotas:vistaMisNotas,docs:vistaDocs,ingresarnotas:vistaIngresarNotas,reportes:vistaReportes,cuentas:vistaCuentas};
@@ -204,9 +247,13 @@ function render(){
 function vistaResumen(){
  $('#refresh').hidden=false;
  if(SESION.rol==='Administrador'){
-  $('#view').innerHTML=`<section class="stats" aria-label="Totales">${Object.entries(modules).map(([k,m])=>`<button class="stat" data-page="${k}"><span>${m.icon} &nbsp; ${m.title}</span><strong>${loading?'…':data[k]?.length??'—'}</strong><span>Consultar registros →</span></button>`).join('')}</section><section class="panel"><div class="panel-top"><div><h2>Oferta académica</h2><p>Materias registradas y docentes asignados</p></div><button class="secondary" id="courses">Ver todas →</button></div>${data.materias?.length?table('materias',data.materias.slice(0,5)):'<div class="empty">Aún no hay materias registradas.</div>'}</section>`;
-  $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
-  $('#courses').onclick=()=>go('materias');
+  const pinta=()=>{
+   $('#view').innerHTML=`<section class="stats" aria-label="Totales">${Object.entries(modules).map(([k,m])=>`<button class="stat" data-page="${k}"><span>${m.icon} &nbsp; ${m.title}</span><strong>${loading?'…':data[k]?.length??'—'}</strong><span>Consultar registros →</span></button>`).join('')}</section><section class="panel"><div class="panel-top"><div><h2>Oferta académica</h2><p>Materias registradas y docentes asignados</p></div><button class="secondary" id="courses">Ver todas →</button></div>${data.materias?.length?table('materias',data.materias.slice(0,5)):vacio('▥','Aún no hay materias registradas','Registra la primera materia para armar la oferta académica.')}</section>`;
+   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
+   $('#courses').onclick=()=>go('materias');
+  };
+  pinta();
+  asegurarCatalogos().then(()=>{if(current==='resumen'&&!loading)pinta();});
  } else if(SESION.rol==='Estudiante'){
   $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Cédula ${esc(SESION.id_persona)} · rol ${esc(SESION.rol)}</p></div></div><div class="help"><article><h3>Matricular</h3><p>Arma tu carrito con las materias de tu facultad. Total entre 6 y 19 créditos.</p><button data-page="matricular">Ir a matricular →</button></article><article><h3>Mis notas</h3><p>Consulta tus calificaciones.</p><button data-page="misnotas">Ver notas →</button></article><article><h3>Mis documentos</h3><p>Recibo de matrícula y reporte de notas en PDF.</p><button data-page="docs">Descargar →</button></article></div></section>`;
   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
@@ -217,20 +264,25 @@ function vistaResumen(){
 }
 
 // ====== Catálogo (solo admin) ======
-function vistaCatalogo(){
+async function vistaCatalogo(){
  const key=current, m=modules[key];
- if(!m){$('#view').innerHTML='<div class="empty">Pantalla no disponible.</div>';return;}
+ if(!m){$('#view').innerHTML=vacio('◈','Pantalla no disponible','Vuelve al resumen y elige una sección del menú.');return;}
  $('#refresh').hidden=false;
- $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…"><span class="count" id="count"></span></div><div id="rows"></div></section>`;
- $('#new').onclick=openForm;$('#search').oninput=e=>renderRows(e.target.value);renderRows();
+ $('#view').innerHTML=`<div id="franja-zone"></div><section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…"><span class="count" id="count"></span></div><div id="rows"></div></section>`;
+ $('#new').onclick=openForm;$('#search').oninput=e=>renderRows(e.target.value);
+ renderRows();
+ await asegurarCatalogos();
+ if(current!==key) return;
+ pintaFranja(key);
+ renderRows();
 }
 function renderRows(query=''){
  const key=current, area=$('#rows');if(!area)return;
- if(loading){area.innerHTML='<div class="empty">Cargando registros…</div>';return;}
- if(errors[key]){area.innerHTML='<div class="empty">No se pudieron cargar los datos. Pulsa Actualizar para reintentar.</div>';return;}
- const all=data[key]||[], q=query.toLocaleLowerCase('es'), rows=all.filter(r=>modules[key].fields.some(f=>String(display(r,f)??'').toLocaleLowerCase('es').includes(q)));
+ if(errors[key]){area.innerHTML=vacio('⚠','No se pudieron cargar los datos','Pulsa Actualizar para reintentar la conexión con la API.');return;}
+ if(!data[key]){area.innerHTML=vacio('⏳','Cargando registros','Un momento, consultamos los datos del sistema académico.');return;}
+ const all=data[key], q=query.toLocaleLowerCase('es'), rows=all.filter(r=>modules[key].fields.some(f=>String(display(r,f)??'').toLocaleLowerCase('es').includes(q)));
  $('#count').textContent=`${rows.length} de ${all.length} registros`;
- area.innerHTML=rows.length?table(key,rows):`<div class="empty">${q?'No hay coincidencias con tu búsqueda.':'Todavía no hay registros. Crea el primero para empezar.'}</div>`;
+ area.innerHTML=rows.length?table(key,rows):(q?vacio('⌕','Sin coincidencias',`Ningún registro coincide con "${query}". Prueba con otro término.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
 }
 function openForm(){
  const m=modules[current];$('#form').reset();$('#form-error').textContent='';$('#dialog-title').textContent=`Registrar ${m.singular}`;$('#dialog-eyebrow').textContent='NUEVO REGISTRO';$('#dialog-hint').textContent='Completa los datos. Los campos con * son obligatorios.';
@@ -256,7 +308,7 @@ $('#form').onsubmit=async e=>{
   payload[name]=type==='number'?Number(raw):(raw||null);
  }
  saving=true;$('#save').disabled=true;$('#save').textContent='Guardando…';$('#cancel').disabled=true;$('#close').disabled=true;
- try{await apiAuth(`/${key}/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();await refreshCatalogos();if(!errors[key])notice('Registro guardado correctamente.',true);}
+ try{await apiAuth(`/${key}/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();await refreshCatalogos();pintaFranja(key);renderRows();if(!errors[key])notice('Registro guardado correctamente.',true);}
  catch(error){$('#form-error').textContent=mensajeRol(error);}
  finally{saving=false;$('#save').disabled=false;$('#save').textContent='Guardar registro';$('#cancel').disabled=false;$('#close').disabled=false;}
 };
@@ -266,15 +318,20 @@ $('#dialog').addEventListener('cancel',e=>{if(saving)e.preventDefault();});$('#c
 let carrito=new Set();
 async function vistaMatricular(){
  $('#refresh').hidden=false;
- if(SESION.rol!=='Estudiante'){$('#view').innerHTML='<div class="empty">No tienes permiso para esta acción.</div>';return;}
- $('#view').innerHTML='<div class="empty">Cargando materias disponibles…</div>';
+ if(SESION.rol!=='Estudiante'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de estudiante adecuada.');return;}
+ $('#view').innerHTML=vacio('⏳','Cargando materias','Un momento, consultamos las materias de tu facultad.');
  try{
   const materias=await api(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/materias-disponibles`);
-  const opciones=materias.map(m=>`<label class="carrito-item"><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${m.creditos}"> <b>${esc(m.id_materia)}</b> · ${esc(m.nombre_curso)} <span class="muted">${m.creditos} créditos · cupos ${m.cupos} · ${esc(m.horario||'sin horario')}</span></label>`).join('');
-  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Materias de tu facultad</h2><p>Marca las que quieres matricular en el periodo 2026-2</p></div></div>${materias.length?`<div class="carrito">${opciones}</div>`:'<div class="empty">Tu facultad todavía no tiene materias.</div>'}<div class="panel-top"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted">Debe quedar entre 6 y 19</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
+  const opciones=materias.map(m=>`<label class="carrito-item"><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${m.creditos}"><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${m.creditos} créditos</span><span class="chip">${m.cupos} cupos</span><span class="chip">${esc(m.horario||'Sin horario')}</span></span></span></label>`).join('');
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel"><div class="panel-top"><div><h2>Materias de tu facultad</h2><p>Marca las que quieres matricular en el periodo 2026-2</p></div></div>${materias.length?`<div class="carrito">${opciones}</div>`:vacio('▥','Tu facultad no tiene materias disponibles','Cuando tu programa publique materias, aparecerán aquí para armar tu matrícula.')}<div class="panel-top"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted">Debe quedar entre 6 y 19</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
   const checkboxes=[...$('#view').querySelectorAll('.carrito-item input')];
   const total=()=>checkboxes.filter(c=>c.checked).reduce((s,c)=>s+Number(c.dataset.creditos),0);
-  const pintaTotal=()=>{const t=total();const el=$('#total-creditos');el.textContent=`Total: ${t} créditos`;el.style.color=(t>=6&&t<=19)?'#2E8B57':'#b02a37';$('#confirmar-carrito').disabled=!(t>=6&&t<=19);};
+  const pintaTotal=()=>{
+   const t=total(), enRango=t>=6&&t<=19;
+   const el=$('#total-creditos');el.textContent=`Total: ${t} créditos`;el.style.color=enRango?'#2E8B57':'#b02a37';
+   const ind=$('#ind-creditos');if(ind){ind.textContent=`${t} créditos`;const caja=ind.closest('.indicador');caja.classList.toggle('ok',enRango);caja.classList.toggle('malo',!enRango);}
+   $('#confirmar-carrito').disabled=!enRango;
+  };
   checkboxes.forEach(c=>c.onchange=()=>{c.checked?carrito.add(c.value):carrito.delete(c.value);pintaTotal();});
   $('#confirmar-carrito').onclick=async()=>{
    const seleccion=checkboxes.filter(c=>c.checked).map(c=>c.value);
@@ -285,19 +342,21 @@ async function vistaMatricular(){
    }catch(error){notice(mensajeRol(error));}
   };
   pintaTotal();
- }catch(error){$('#view').innerHTML=`<div class="empty">${esc(mensajeRol(error))}</div>`;}
+ }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar las materias',mensajeRol(error));}
 }
 
 // ====== Estudiante: Mis notas ======
 async function vistaMisNotas(){
  $('#refresh').hidden=false;
- $('#view').innerHTML='<div class="empty">Cargando…</div>';
+ $('#view').innerHTML=vacio('⏳','Cargando notas','Un momento, consultamos tus calificaciones.');
  try{
   const notas=await apiAuth('/notas/');
-  if(!notas.length){$('#view').innerHTML='<div class="empty">Aún no tienes notas registradas.</div>';return;}
+  if(!notas.length){$('#view').innerHTML=vacio('✎','Aún no tienes notas registradas','Cuando tus profesores registren calificaciones, las verás aquí.');return;}
+  const conDefinitiva=notas.filter(n=>n.definitiva!=null);
+  const promedio=conDefinitiva.length?(conDefinitiva.reduce((s,n)=>s+Number(n.definitiva),0)/conDefinitiva.length).toFixed(2):'—';
   const filas=notas.map(n=>`<tr><td><span class="id">${esc(n.id_nota)}</span></td><td>${esc(n.id_materia)}</td><td>${n.nota1??'—'}</td><td>${n.nota2??'—'}</td><td>${n.nota3??'—'}</td><td><b>${n.definitiva??'—'}</b></td><td>${esc(n.estado||'Sin notas')}</td></tr>`).join('');
-  $('#view').innerHTML=`<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>`;
- }catch(error){$('#view').innerHTML=`<div class="empty">${esc(mensajeRol(error))}</div>`;}
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias con nota',valor:notas.length},{etiqueta:'Promedio de definitivas',valor:promedio}])}<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>`;
+ }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus notas',mensajeRol(error));}
 }
 
 // ====== Descarga de PDF con credenciales ======
@@ -324,19 +383,21 @@ function vistaDocs(){
 // ====== Profesor: Ingresar notas ======
 async function vistaIngresarNotas(){
  $('#refresh').hidden=false;
- if(SESION.rol!=='Profesor'){$('#view').innerHTML='<div class="empty">No tienes permiso para esta acción.</div>';return;}
- $('#view').innerHTML='<div class="empty">Cargando tus materias…</div>';
+ if(SESION.rol!=='Profesor'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de profesor adecuada.');return;}
+ $('#view').innerHTML=vacio('⏳','Cargando materias','Un momento, consultamos tus materias asignadas.');
  try{
   await refreshCatalogos();
   const mias=(data.materias||[]).filter(m=>m.id_profesor===SESION.id_persona);
-  if(!mias.length){$('#view').innerHTML='<div class="empty">No tienes materias asignadas.</div>';return;}
+  if(!mias.length){$('#view').innerHTML=vacio('♧','No tienes materias asignadas','Cuando te asignen materias podrás registrar notas aquí.');return;}
   const matriculas=await apiAuth('/matriculas/');
+  const idsMias=new Set(mias.map(m=>m.id_materia));
+  const estudiantesTotal=matriculas.filter(m=>idsMias.has(m.id_materia)).length;
   const opciones=mias.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
-  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Elige una de tus materias</h2><p>Solo puedes calificar las tuyas</p></div></div><div class="fields"><div><label for="sel-materia">Materia</label><select id="sel-materia">${opciones}</select></div></div><div id="estudiantes-notas"></div></section>`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias asignadas',valor:mias.length},{etiqueta:'Estudiantes matriculados',valor:estudiantesTotal}])}<section class="panel"><div class="panel-top"><div><h2>Elige una de tus materias</h2><p>Solo puedes calificar las tuyas</p></div></div><div class="fields"><div><label for="sel-materia">Materia</label><select id="sel-materia">${opciones}</select></div></div><div id="estudiantes-notas"></div></section>`;
   const pintar=()=>{
    const idMateria=$('#sel-materia').value;
    const deLaMateria=matriculas.filter(m=>m.id_materia===idMateria);
-   $('#estudiantes-notas').innerHTML=deLaMateria.length?`<div class="table-wrap"><table><thead><tr><th>Estudiante</th><th>Nota 1</th><th>Nota 2</th><th>Nota 3</th><th></th></tr></thead><tbody>${deLaMateria.map(m=>`<tr><td>${esc(m.cedula)}</td><td><input type="number" step="0.1" min="0" max="5" id="n1-${esc(m.id_matricula)}"></td><td><input type="number" step="0.1" min="0" max="5" id="n2-${esc(m.id_matricula)}"></td><td><input type="number" step="0.1" min="0" max="5" id="n3-${esc(m.id_matricula)}"></td><td><button class="guardar-nota" data-id="${esc(m.id_matricula)}">Guardar</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No hay estudiantes matriculados en esta materia.</div>';
+   $('#estudiantes-notas').innerHTML=deLaMateria.length?`<div class="table-wrap"><table><thead><tr><th>Estudiante</th><th>Nota 1</th><th>Nota 2</th><th>Nota 3</th><th></th></tr></thead><tbody>${deLaMateria.map(m=>`<tr><td>${esc(m.cedula)}</td><td><input type="number" step="0.1" min="0" max="5" id="n1-${esc(m.id_matricula)}"></td><td><input type="number" step="0.1" min="0" max="5" id="n2-${esc(m.id_matricula)}"></td><td><input type="number" step="0.1" min="0" max="5" id="n3-${esc(m.id_matricula)}"></td><td><button class="guardar-nota" data-id="${esc(m.id_matricula)}">Guardar</button></td></tr>`).join('')}</tbody></table></div>`:vacio('♙','No hay estudiantes matriculados en esta materia','Cuando un estudiante la matricule, aparecerá aquí para calificarlo.');
    $('#estudiantes-notas').querySelectorAll('.guardar-nota').forEach(b=>b.onclick=async()=>{
     const id=b.dataset.id,n1=parseFloat($(`#n1-${id}`).value),n2=parseFloat($(`#n2-${id}`).value),n3=parseFloat($(`#n3-${id}`).value);
     if([n1,n2,n3].some(n=>Number.isNaN(n)||n<0||n>5)){notice('Las tres notas deben estar entre 0.0 y 5.0');return;}
@@ -348,16 +409,15 @@ async function vistaIngresarNotas(){
    });
   };
   $('#sel-materia').onchange=pintar;pintar();
- }catch(error){$('#view').innerHTML=`<div class="empty">${esc(mensajeRol(error))}</div>`;}
+ }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus materias',mensajeRol(error));}
 }
 
 // ====== Profesor: Reportes ======
 function vistaReportes(){
  $('#refresh').hidden=false;
- $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>PDF de tus estudiantes</h2><p>Escribe la cédula de un estudiante matriculado en tus materias</p></div></div><div class="fields"><div><label for="cedula-reporte">Cédula</label><input id="cedula-reporte" type="text" placeholder="1001"></div></div><div class="help"><article><h3>Reporte de notas</h3><button id="pdf-notas-prof">Descargar notas ⇩</button></article><article><h3>Recibo de matrícula</h3><button id="pdf-matricula-prof">Descargar recibo ⇩</button></article></div></section>`;
+ $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Reporte de notas de tus estudiantes</h2><p>Escribe la cédula de un estudiante matriculado en tus materias</p></div></div><div class="fields"><div><label for="cedula-reporte">Cédula</label><input id="cedula-reporte" type="text" placeholder="1001"></div></div><div class="ayuda-reportes"><article><h3>Reporte de notas</h3><p>Boletín con las calificaciones del estudiante en tus materias.</p><button id="pdf-notas-prof">Descargar notas ⇩</button></article></div></section>`;
  const cedula=()=>encodeURIComponent(($('#cedula-reporte').value||'').trim());
  $('#pdf-notas-prof').onclick=()=>{const c=cedula();if(c)descargarPDF(`/pdf/notas/${c}`,`Reporte_Notas_${c}.pdf`);};
- $('#pdf-matricula-prof').onclick=()=>{const c=cedula();if(c)descargarPDF(`/pdf/matricula/${c}`,`Recibo_Matricula_${c}.pdf`);};
 }
 
 // ====== Admin: Cuentas ======
@@ -381,5 +441,5 @@ function vistaCuentas(){
 
 // ====== Refresh y navegación ======
 $('#refresh').onclick=async()=>{if(loading)return;loading=true;$('#refresh').disabled=true;notice('');await refreshCatalogos();loading=false;$('#refresh').disabled=false;render();};
-window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);current=valido?hash:'resumen';if(SESION)render();});
+window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){current=destino;animarSeccion();}});
 current='resumen';

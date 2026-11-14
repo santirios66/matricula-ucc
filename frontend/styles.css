@@ -34,5 +34,53 @@
 #session-greeting b{font-weight:700}
 #logout{padding:10px 16px;font-size:13px}
 .side-bottom-note{color:#7f9aac;font-size:11px;line-height:1.7;margin-top:12px}
-.carrito{display:grid;gap:8px;margin:16px 0}.carrito-item{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:center;cursor:pointer;background:white}.carrito-item:hover{border-color:var(--teal)}#total-creditos{color:#2E8B57}.guardar-nota{padding:8px 12px;font-size:13px}
-@media(max-width:760px){#connection{display:none}.session-chip{gap:10px}}
+.carrito{display:grid;gap:10px;padding:4px 26px 10px}.carrito-item{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:14px 18px;cursor:pointer;background:white;transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease}.carrito-item:hover{border-color:#9ed6d1}.carrito-item:has(input:checked){border-color:var(--teal);background:#f2faf9;box-shadow:inset 0 0 0 1px var(--teal)}.carrito-item input{width:18px;height:18px;accent-color:var(--teal);cursor:pointer;margin:0}.carrito-info{display:grid;gap:0}.carrito-nombre{font-size:14.5px;font-weight:600;color:#182f43;line-height:1.4}.carrito-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chip{font-size:11px;font-weight:600;color:#4a6274;background:#eef3f6;border-radius:20px;padding:4px 10px;letter-spacing:.3px;white-space:nowrap}.chip-creditos{background:#eaf5f3;color:#1f6b5e}#total-creditos{color:#2E8B57}.guardar-nota{padding:8px 12px;font-size:13px}
+@media(max-width:760px){#connection{display:none}.session-chip{gap:10px}} 
+/* ====== Transición entre secciones (respeta prefers-reduced-motion) ====== */
+#view{transition:opacity .2s ease,transform .2s ease}
+#view.seccion-saliendo{opacity:0;transform:translateY(8px)}
+#view.seccion-entrando{animation:entrada-seccion .25s ease}
+@keyframes entrada-seccion{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){#view{transition:none}#view.seccion-entrando{animation:none}}
+
+/* ====== Franja de indicadores ====== */
+.franja{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 4px}
+.indicador{background:white;border:1px solid var(--line);border-radius:12px;padding:16px 20px;box-shadow:0 1px 2px rgba(16,44,64,.05)}
+.indicador span{display:block;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;font-weight:600;color:#5c7080}
+.indicador strong{display:block;font-size:26px;color:#182f43;margin-top:6px;font-weight:700}
+.indicador.ok strong{color:#2E8B57}
+.indicador.malo strong{color:#b02a37}
+
+/* ====== Jerarquía visual ====== */
+#title{font-size:36px;letter-spacing:-1.2px}
+#subtitle{color:#5c7080;font-size:15px;margin:0;line-height:1.6}
+.panel{border-radius:14px;box-shadow:0 1px 2px rgba(16,44,64,.06),0 6px 18px rgba(16,44,64,.05)}
+.panel-top{padding:26px}
+.panel-top p{color:#5c7080;font-size:13.5px}
+.muted{color:#5c7080}
+.count{color:#5c7080}
+th{color:#566b7a}
+.empty{color:#5c7080}
+@media(max-width:760px){#title{font-size:27px}}
+
+/* ====== Estado vacío con icono ====== */
+.empty-icono{display:block;font-size:34px;margin-bottom:12px;opacity:.9}
+.empty h3{margin:0 0 8px;color:#3f5a6b;font-size:15.5px}
+.empty p{margin:0 auto;font-size:13.5px;line-height:1.7;max-width:430px;color:#5c7080}
+
+/* ====== Reportes del profesor (una sola tarjeta) ====== */
+.ayuda-reportes{display:grid;grid-template-columns:1fr;gap:24px;margin-top:24px;padding:0 26px 26px}
+.ayuda-reportes article{border-left:3px solid #b8dbd6;padding:4px 20px}
+.ayuda-reportes h3{font-size:14px;margin:0}
+.ayuda-reportes p{font-size:13px;color:#5c7080;margin:6px 0 12px}
+
+/* ====== Espaciado y legibilidad de textos ====== */
+body{line-height:1.55}
+td{line-height:1.55}
+h1,h2,h3{line-height:1.3}
+.stat span,.stat strong{display:block}
+.stat strong{font-size:30px;margin:12px 0 8px}
+.stat span:last-child{font-size:11.5px;letter-spacing:.4px;color:#5c7080}
+.help article button{margin-top:14px}
+#view article .fields + button{margin-top:14px}
+#view .panel-top + .help,#view .panel-top + .ayuda-reportes{padding:0 26px 26px}
