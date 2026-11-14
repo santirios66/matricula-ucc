@@ -77,7 +77,15 @@ function animarSeccion(destino,origen){
 }
 $('#view').addEventListener('animationend',e=>{
   if(e.animationName==='entrada-der'||e.animationName==='entrada-izq')$('#view').classList.remove('seccion-entrada-der','seccion-entrada-izq');
+  if(e.animationName==='llegada-datos')e.target.classList.remove('llegada-datos');
 });
+// Aparición suave cuando los datos llegan de la API: sube 8 px y se desvanece en 250 ms
+function animaLlegada(el){
+  if(!el||sinAnimacion())return;
+  el.classList.remove('llegada-datos');
+  void el.offsetWidth;
+  el.classList.add('llegada-datos');
+}
 
 // ====== Franja de indicadores y estados vacíos ======
 function franja(items){
@@ -314,7 +322,7 @@ function vistaResumen(){
    try{await asegurarCatalogos();}catch(_){}
    let matriculas=null;
    try{matriculas=await apiAuth('/matriculas/');}catch(_){matriculas=null;}
-   if(current==='resumen'&&SESION&&SESION.rol==='Administrador')pinta(calcularPanel(matriculas));
+   if(current==='resumen'&&SESION&&SESION.rol==='Administrador'){pinta(calcularPanel(matriculas));animaLlegada($('#view'));}
   })();
  } else if(SESION.rol==='Estudiante'){
   $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Cédula ${esc(SESION.id_persona)} · rol ${esc(SESION.rol)}</p></div></div><div class="help"><article><h3>Matricular</h3><p>Arma tu carrito con las materias de tu facultad. Total entre 6 y 19 créditos.</p><button data-page="matricular">Ir a matricular →</button></article><article><h3>Mis notas</h3><p>Consulta tus calificaciones.</p><button data-page="misnotas">Ver notas →</button></article><article><h3>Mis documentos</h3><p>Recibo de matrícula y reporte de notas en PDF.</p><button data-page="docs">Descargar →</button></article></div></section>`;
@@ -337,6 +345,7 @@ async function vistaCatalogo(){
  if(current!==key) return;
  pintaFranja(key);
  renderRows();
+ animaLlegada($('#rows'));
 }
 function renderRows(query=''){
  const key=current, area=$('#rows');if(!area)return;
@@ -404,6 +413,7 @@ async function vistaMatricular(){
    }catch(error){notice(mensajeRol(error));}
   };
   pintaTotal();
+  animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar las materias',mensajeRol(error));}
 }
 
@@ -413,11 +423,12 @@ async function vistaMisNotas(){
  $('#view').innerHTML=vacio('⏳','Cargando notas','Un momento, consultamos tus calificaciones.');
  try{
   const notas=await apiAuth('/notas/');
-  if(!notas.length){$('#view').innerHTML=vacio('✎','Aún no tienes notas registradas','Cuando tus profesores registren calificaciones, las verás aquí.');return;}
+  if(!notas.length){$('#view').innerHTML=vacio('✎','Aún no tienes notas registradas','Cuando tus profesores registren calificaciones, las verás aquí.');animaLlegada($('#view'));return;}
   const conDefinitiva=notas.filter(n=>n.definitiva!=null);
   const promedio=conDefinitiva.length?(conDefinitiva.reduce((s,n)=>s+Number(n.definitiva),0)/conDefinitiva.length).toFixed(2):'—';
   const filas=notas.map(n=>`<tr><td><span class="id">${esc(n.id_nota)}</span></td><td>${esc(n.id_materia)}</td><td>${n.nota1??'—'}</td><td>${n.nota2??'—'}</td><td>${n.nota3??'—'}</td><td><b>${n.definitiva??'—'}</b></td><td>${esc(n.estado||'Sin notas')}</td></tr>`).join('');
   $('#view').innerHTML=`${franja([{etiqueta:'Materias con nota',valor:notas.length},{etiqueta:'Promedio de definitivas',valor:promedio}])}<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>`;
+  animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus notas',mensajeRol(error));}
 }
 
@@ -456,6 +467,7 @@ async function vistaIngresarNotas(){
   const estudiantesTotal=matriculas.filter(m=>idsMias.has(m.id_materia)).length;
   const opciones=mias.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
   $('#view').innerHTML=`${franja([{etiqueta:'Materias asignadas',valor:mias.length},{etiqueta:'Estudiantes matriculados',valor:estudiantesTotal}])}<section class="panel"><div class="panel-top"><div><h2>Elige una de tus materias</h2><p>Solo puedes calificar las tuyas</p></div></div><div class="fields"><div><label for="sel-materia">Materia</label><select id="sel-materia">${opciones}</select></div></div><div id="estudiantes-notas"></div></section>`;
+  animaLlegada($('#view'));
   const pintar=()=>{
    const idMateria=$('#sel-materia').value;
    const deLaMateria=matriculas.filter(m=>m.id_materia===idMateria);

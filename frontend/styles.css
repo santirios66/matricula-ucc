@@ -166,3 +166,8 @@ body.tema-oscuro .indicador.ok strong,body.tema-oscuro #total-creditos{color:#5f
 body.tema-oscuro .indicador.malo strong{color:#ff9299}
 body.tema-oscuro #btn-tema{background:#133145;border-color:#2a4a5e;color:#d9e6ee;box-shadow:0 12px 28px rgba(0,0,0,.4)}
 body.tema-oscuro #btn-tema:hover{background:#1a3d54}
+
+/* ====== Aparición suave de los datos al llegar de la API (sube 8 px + desvanecido) ====== */
+.llegada-datos{animation:llegada-datos .25s ease-out}
+@keyframes llegada-datos{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.llegada-datos{animation:none}}
