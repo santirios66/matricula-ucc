@@ -66,11 +66,21 @@ async function refreshCatalogos(){
   if(failed.length)notice(`${failed.join(', ')}: ${errors[failed[0]]}`);
 }
 
-// ====== Login ======
+// ====== Login (página independiente) ======
+$('#toggle-clave').addEventListener('click',()=>{
+  const input=$('#login-clave'), ver=input.type==='password';
+  input.type=ver?'text':'password';
+  const btn=$('#toggle-clave');
+  btn.textContent=ver?'🙈':'👁';
+  btn.setAttribute('aria-label',ver?'Ocultar clave':'Ver clave');
+  btn.setAttribute('aria-pressed',String(ver));
+  input.focus();
+});
 $('#login-form').addEventListener('submit', async e=>{
   e.preventDefault();$('#login-error').textContent='';
   const usuario=$('#login-usuario').value.trim(), clave=$('#login-clave').value;
-  $('#login-btn').disabled=true;
+  const btn=$('#login-btn');
+  btn.disabled=true;btn.dataset.loading='1';btn.textContent='Iniciando sesión…';
   try{
     const sesion=await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario,clave})});
     if(sesion.debe_cambiar_clave){
@@ -83,19 +93,57 @@ $('#login-form').addEventListener('submit', async e=>{
     $('#login-error').textContent = error.status===401
       ? 'Usuario o contraseña incorrectos'
       : error.message;
-  }finally{$('#login-btn').disabled=false;$('#login-clave').value='';}
+  }finally{
+    btn.disabled=false;delete btn.dataset.loading;btn.textContent='Iniciar sesión';
+    $('#login-clave').value='';$('#toggle-clave').textContent='👁';$('#login-clave').type='password';
+  }
 });
+// Nombre para el saludo: el de la API (catálogos) o el usuario si no hay nombre
+function nombreDe(sesion){
+  if(sesion.rol==='Estudiante'){
+    const e=(data.estudiantes||[]).find(x=>x.id_estudiante===sesion.id_persona);
+    if(e) return [e.nombre,e.apellidos].filter(Boolean).join(' ');
+  }
+  if(sesion.rol==='Profesor'){
+    const p=(data.profesores||[]).find(x=>x.id_profesor===sesion.id_persona);
+    if(p) return [p.nombre,p.apellidos].filter(Boolean).join(' ');
+  }
+  return sesion.usuario;
+}
+function saludo(){
+  if(!SESION) return;
+  $('#session-greeting').innerHTML=`Hola, <b>${esc(nombreDe(SESION))}</b> · ${esc(SESION.rol)}`;
+}
+async function completarNombre(){
+  try{
+    if(SESION.rol==='Estudiante') data.estudiantes=await api('/estudiantes/');
+    else if(SESION.rol==='Profesor') data.profesores=await api('/profesores/');
+    else return;
+    saludo();
+    if(current==='resumen')render();
+  }catch(_){}
+}
+// Transición suave (fade 300 ms) entre login y aplicación
+function crossfade(ocultar, mostrar){
+  ocultar.forEach(el=>el.classList.add('fading'));
+  setTimeout(()=>{
+    ocultar.forEach(el=>{el.hidden=true;el.classList.remove('fading');});
+    mostrar.forEach(el=>{el.hidden=false;el.classList.add('fading');});
+    requestAnimationFrame(()=>requestAnimationFrame(()=>mostrar.forEach(el=>el.classList.remove('fading'))));
+  },300);
+}
 function iniciarSesion(sesion){
   SESION=sesion;
-  $('#login-screen').hidden=true;$('#app-aside').hidden=false;$('#app-workspace').hidden=false;
-  $('#session-info').textContent=`Sesión: ${sesion.usuario} (${sesion.rol})`;
-  $('#login-usuario').value='';$('#login-clave').value='';
+  saludo();completarNombre();
+  crossfade([$('#login-screen')],[$('#app-aside'),$('#app-workspace')]);
+  $('#login-usuario').value='';$('#login-clave').value='';$('#login-error').textContent='';
   current='resumen';
   render();
 }
 $('#logout').onclick=()=>{
   SESION=null;data={};errors={};
-  $('#login-screen').hidden=false;$('#app-aside').hidden=true;$('#app-workspace').hidden=true;
+  crossfade([$('#app-workspace'),$('#app-aside')],[$('#login-screen')]);
+  $('#session-greeting').textContent='';
   $('#login-error').textContent='';location.hash='';
 };
 // Cualquier clic en menús/botones sin sesión: aviso y no cambia de pantalla
@@ -160,10 +208,10 @@ function vistaResumen(){
   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
   $('#courses').onclick=()=>go('materias');
  } else if(SESION.rol==='Estudiante'){
-  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(SESION.usuario)}</h2><p>Cédula ${esc(SESION.id_persona)} · rol ${esc(SESION.rol)}</p></div></div><div class="help"><article><h3>Matricular</h3><p>Arma tu carrito con las materias de tu facultad. Total entre 6 y 19 créditos.</p><button data-page="matricular">Ir a matricular →</button></article><article><h3>Mis notas</h3><p>Consulta tus calificaciones.</p><button data-page="misnotas">Ver notas →</button></article><article><h3>Mis documentos</h3><p>Recibo de matrícula y reporte de notas en PDF.</p><button data-page="docs">Descargar →</button></article></div></section>`;
+  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Cédula ${esc(SESION.id_persona)} · rol ${esc(SESION.rol)}</p></div></div><div class="help"><article><h3>Matricular</h3><p>Arma tu carrito con las materias de tu facultad. Total entre 6 y 19 créditos.</p><button data-page="matricular">Ir a matricular →</button></article><article><h3>Mis notas</h3><p>Consulta tus calificaciones.</p><button data-page="misnotas">Ver notas →</button></article><article><h3>Mis documentos</h3><p>Recibo de matrícula y reporte de notas en PDF.</p><button data-page="docs">Descargar →</button></article></div></section>`;
   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
  } else {
-  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(SESION.usuario)}</h2><p>Profesor · ID ${esc(SESION.id_persona)}</p></div></div><div class="help"><article><h3>Ingresar notas</h3><p>Elige una de tus materias y califica a sus estudiantes.</p><button data-page="ingresarnotas">Ingresar notas →</button></article><article><h3>Reportes</h3><p>PDF de notas de tus estudiantes.</p><button data-page="reportes">Ver reportes →</button></article></div></section>`;
+  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Profesor · ID ${esc(SESION.id_persona)}</p></div></div><div class="help"><article><h3>Ingresar notas</h3><p>Elige una de tus materias y califica a sus estudiantes.</p><button data-page="ingresarnotas">Ingresar notas →</button></article><article><h3>Reportes</h3><p>PDF de notas de tus estudiantes.</p><button data-page="reportes">Ver reportes →</button></article></div></section>`;
   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
  }
 }

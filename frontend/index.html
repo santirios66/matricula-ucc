@@ -2,13 +2,26 @@
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Campus UCC · Gestión académica</title><link rel="stylesheet" href="styles.css"><script src="config.js" defer></script><script src="app.js" defer></script></head>
 <body><a class="skip" href="#content">Saltar al contenido</a>
 
-<!-- Pantalla de inicio: logo, texto corto y formulario de acceso -->
-<div id="login-screen"><div class="login-card"><div class="brand brand-big"><span class="mark">U</span><div><strong>Campus UCC</strong><small>GESTIÓN ACADÉMICA</small></div></div><p class="login-lead">Inicia sesión con tu cuenta institucional para gestionar la matrícula, las notas y los reportes.</p><form id="login-form"><label for="login-usuario">Usuario</label><input id="login-usuario" type="text" autocomplete="off" required placeholder="admin"><label for="login-clave">Clave</label><input id="login-clave" type="password" autocomplete="off" required placeholder="••••••••"><p id="login-error" role="alert"></p><button type="submit" id="login-btn">Iniciar sesión</button></form><p class="muted">Tus credenciales solo viven en la memoria de esta pestaña: no se guardan en el navegador ni en el código.</p></div></div>
+<!-- Login: página completa e independiente de la aplicación -->
+<div id="login-screen">
+  <div class="login-box">
+    <span class="login-mark" aria-hidden="true">U</span>
+    <h1 class="login-title">Campus UCC</h1>
+    <p class="login-subtitle">Gestión académica</p>
+    <form id="login-form">
+      <div><label for="login-usuario">Usuario</label><input id="login-usuario" type="text" autocomplete="off" required placeholder="admin"></div>
+      <div><label for="login-clave">Clave</label><span class="clave-wrap"><input id="login-clave" type="password" autocomplete="off" required placeholder="••••••••"><button type="button" id="toggle-clave" aria-label="Ver clave" aria-pressed="false">👁</button></span></div>
+      <p id="login-error" role="alert"></p>
+      <button type="submit" id="login-btn">Iniciar sesión</button>
+    </form>
+    <p class="login-note">Tus credenciales solo viven en la memoria de esta pestaña: no se guardan en el navegador ni en el código.</p>
+  </div>
+</div>
 
-<!-- Aplicación: solo visible con sesión iniciada -->
-<aside id="app-aside" hidden><div class="brand"><span class="mark">U</span><div><strong>Campus UCC</strong><small>GESTIÓN ACADÉMICA</small></div></div><p class="nav-label">ESPACIO ACADÉMICO</p><nav id="nav" aria-label="Navegación principal"></nav><div class="side-bottom"><p id="session-info">Sesión: —</p><button id="logout" class="secondary">Cerrar sesión</button><p class="side-bottom-note">Universidad Cooperativa de Colombia · Sede Cali</p></div></aside>
+<!-- Aplicación: barra lateral con el menú del rol -->
+<aside id="app-aside" hidden><div class="brand"><span class="mark">U</span><div><strong>Campus UCC</strong><small>GESTIÓN ACADÉMICA</small></div></div><p class="nav-label">ESPACIO ACADÉMICO</p><nav id="nav" aria-label="Navegación principal"></nav><div class="side-bottom"><p class="side-bottom-note">Universidad Cooperativa de Colombia · Sede Cali</p></div></aside>
 
-<div class="workspace" id="app-workspace" hidden><header><span>Portal académico <span class="slash">/</span> <b id="breadcrumb">Resumen</b></span><span id="connection" role="status">Conectando…</span></header><main id="content" tabindex="-1"><div class="heading"><div><p class="eyebrow">UNIVERSIDAD COOPERATIVA DE COLOMBIA</p><h1 id="title">Resumen académico</h1><p id="subtitle">Toda tu comunidad académica, en un solo lugar.</p></div><button id="refresh" class="secondary">↻ Actualizar</button></div><div id="notice" role="status" hidden></div><div id="view"></div><footer>Campus UCC <span>Organización y gestión de la información académica</span></footer></main></div>
+<div class="workspace" id="app-workspace" hidden><header><span>Portal académico <span class="slash">/</span> <b id="breadcrumb">Resumen</b></span><span class="session-chip"><span id="session-greeting" role="status"></span><span id="connection" role="status">Conectando…</span><button id="logout" class="secondary">Cerrar sesión</button></span></header><main id="content" tabindex="-1"><div class="heading"><div><p class="eyebrow">UNIVERSIDAD COOPERATIVA DE COLOMBIA</p><h1 id="title">Resumen académico</h1><p id="subtitle">Toda tu comunidad académica, en un solo lugar.</p></div><button id="refresh" class="secondary">↻ Actualizar</button></div><div id="notice" role="status" hidden></div><div id="view"></div><footer>Campus UCC <span>Organización y gestión de la información académica</span></footer></main></div>
 
 <dialog id="dialog" aria-labelledby="dialog-title"><div class="dialog-heading"><div><p class="eyebrow" id="dialog-eyebrow">NUEVO REGISTRO</p><h2 id="dialog-title"></h2></div><button id="close" class="secondary" aria-label="Cerrar formulario">✕</button></div><p class="muted" id="dialog-hint">Completa los datos. Los campos con * son obligatorios.</p><form id="form"><div id="fields" class="fields"></div><p id="form-error" role="alert"></p><div class="form-actions"><button type="button" id="cancel" class="secondary">Cancelar</button><button type="submit" id="save">Guardar registro</button></div></form></dialog>
 
