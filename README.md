@@ -143,4 +143,4 @@ Este proyecto es académico y estas limitaciones están documentadas a propósit
 
 ## Autor
 
-**Santiago Patiño Ríos**: Ingeniería de Sistemas, Universidad Cooperativa de Colombia, Sede Cali.
+**Santiago Patiño Ríos - jairo arbolea**: Ingeniería de Sistemas, Universidad Cooperativa de Colombia, Sede Cali.
