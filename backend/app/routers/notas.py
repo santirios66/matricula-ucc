@@ -76,8 +76,8 @@ def listar_notas(sesion: dict = Depends(autenticar)):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def crear_nota(nota: NotaCreate):
-    """Crea una nota. Devuelve 404 si la matrícula no existe y 409 si ya tiene nota."""
+def crear_nota(nota: NotaCreate, sesion: dict = Depends(autenticar)):
+    """Crea una nota con reglas de rol. 404 si la matrícula no existe, 409 si ya tiene nota."""
     id_matricula = nota.id_matricula.strip()
     id_nota = str(uuid.uuid4())[:8]
     definitiva = round((nota.nota1 + nota.nota2 + nota.nota3) / 3, 2)
@@ -88,7 +88,9 @@ def crear_nota(nota: NotaCreate):
         with conn.cursor() as cur:
             # 1. La matrícula debe existir en matriculas (de ahí sale id_materia)
             cur.execute(
-                "SELECT id_materia FROM matriculas WHERE id_matricula = %s",
+                "SELECT m.id_materia, mat.id_profesor FROM matriculas m "
+                "JOIN materias mat ON mat.id_materia = m.id_materia "
+                "WHERE m.id_matricula = %s",
                 (id_matricula,),
             )
             fila_matricula = cur.fetchone()
@@ -97,8 +99,19 @@ def crear_nota(nota: NotaCreate):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No existe la matrícula con ID '{id_matricula}'",
                 )
-            id_materia = fila_matricula[0]
-            # 2. Esa matrícula no puede tener ya una nota
+            id_materia, id_profesor_materia = fila_matricula
+            # 2. Reglas de rol
+            if sesion["rol"] == ROL_ESTUDIANTE:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Un estudiante no puede registrar notas",
+                )
+            if sesion["rol"] == ROL_PROFESOR and id_profesor_materia != sesion["id_persona"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"La materia '{id_materia}' no es tuya; solo puedes registrar notas en tus materias",
+                )
+            # 3. Esa matrícula no puede tener ya una nota
             cur.execute(
                 "SELECT 1 FROM notas WHERE id_matricula = %s",
                 (id_matricula,),

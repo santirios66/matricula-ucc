@@ -93,20 +93,27 @@ def generar_pdf_matricula(cedula):
 
     filas = _consulta(
         """
-        SELECT m.id_materia, mat.nombre_curso, m.creditos, m.periodo
+        SELECT m.id_matricula, m.id_materia, mat.nombre_curso, m.creditos, m.periodo, m.fecha_matricula
         FROM matriculas m
         JOIN materias mat ON mat.id_materia = m.id_materia
         WHERE m.cedula = %s
-        ORDER BY m.id_materia
+        ORDER BY m.periodo, m.fecha_matricula, m.id_matricula
         """,
         (cedula,),
     )
     if not filas:
         return False, "El estudiante no tiene materias matriculadas."
 
+    # Radicado: primeros 8 caracteres del id_matricula del primer registro del
+    # periodo (el más antiguo), en mayúsculas.
+    id_primer_registro = filas[0][0]
+    radicado = str(id_primer_registro)[:8].upper()
+    periodo_recibo = filas[0][4]
+    fecha_matricula = filas[0][5]
+
     datos_tabla = [["Código", "Materia", "Créditos", "Periodo"]]
     total_creditos = 0
-    for id_materia, nombre_materia, creditos, periodo in filas:
+    for id_matricula, id_materia, nombre_materia, creditos, periodo, fecha in filas:
         total_creditos += creditos
         datos_tabla.append([id_materia, nombre_materia, creditos, periodo])
     datos_tabla.append(["", "TOTAL CRÉDITOS", total_creditos, ""])
@@ -117,7 +124,14 @@ def generar_pdf_matricula(cedula):
 
     contenido = [
         Paragraph("Recibo de Matrícula", estilos["Title"]), Spacer(1, 0.5 * cm),
-        Paragraph(f"<b>Estudiante:</b> {estudiante[0]} {estudiante[1]}<br/><b>Cédula:</b> {cedula}", estilos["Normal"]),
+        Paragraph(
+            f"<b>Estudiante:</b> {estudiante[0]} {estudiante[1]}<br/>"
+            f"<b>Cédula:</b> {cedula}<br/>"
+            f"<b>Radicado:</b> {radicado}<br/>"
+            f"<b>Periodo:</b> {periodo_recibo}<br/>"
+            f"<b>Fecha de matrícula:</b> {fecha_matricula}",
+            estilos["Normal"],
+        ),
         Spacer(1, 1 * cm),
     ]
 
