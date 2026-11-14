@@ -4,11 +4,12 @@
 
 <!-- Login: página completa e independiente de la aplicación -->
 <div id="login-screen">
+  <div class="login-deco" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span></div>
   <div class="login-box">
     <span class="login-mark" aria-hidden="true">U</span>
     <h1 class="login-title">Campus UCC</h1>
     <p class="login-subtitle">Gestión académica</p>
-    <form id="login-form">
+    <form id="login-form" class="login-form">
       <div><label for="login-usuario">Usuario</label><input id="login-usuario" type="text" autocomplete="off" required placeholder="admin"></div>
       <div><label for="login-clave">Clave</label><span class="clave-wrap"><input id="login-clave" type="password" autocomplete="off" required placeholder="••••••••"><button type="button" id="toggle-clave" aria-label="Ver clave" aria-pressed="false">👁</button></span></div>
       <p id="login-error" role="alert"></p>
@@ -19,7 +20,7 @@
 </div>
 
 <!-- Aplicación: barra lateral con el menú del rol -->
-<aside id="app-aside" hidden><div class="brand"><span class="mark">U</span><div><strong>Campus UCC</strong><small>GESTIÓN ACADÉMICA</small></div></div><p class="nav-label">ESPACIO ACADÉMICO</p><nav id="nav" aria-label="Navegación principal"></nav><div class="side-bottom"><p class="side-bottom-note">Universidad Cooperativa de Colombia · Sede Cali</p></div></aside>
+<aside id="app-aside" hidden><div class="brand-zona"><button id="logo-menu-btn" class="brand" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="logo-menu"><span class="mark">U</span><div><strong>Campus UCC</strong><small>GESTIÓN ACADÉMICA</small></div></button><div id="logo-menu" role="menu" aria-label="Accesos rápidos" hidden></div></div><p class="nav-label">ESPACIO ACADÉMICO</p><nav id="nav" aria-label="Navegación principal"></nav><div class="side-bottom"><p class="side-bottom-note">Universidad Cooperativa de Colombia · Sede Cali</p></div></aside>
 
 <div class="workspace" id="app-workspace" hidden><header><span>Portal académico <span class="slash">/</span> <b id="breadcrumb">Resumen</b></span><span class="session-chip"><span id="session-greeting" role="status"></span><span id="connection" role="status">Conectando…</span><button id="logout" class="secondary">Cerrar sesión</button></span></header><main id="content" tabindex="-1"><div class="heading"><div><p class="eyebrow">UNIVERSIDAD COOPERATIVA DE COLOMBIA</p><h1 id="title">Resumen académico</h1><p id="subtitle">Toda tu comunidad académica, en un solo lugar.</p></div><button id="refresh" class="secondary">↻ Actualizar</button></div><div id="notice" role="status" hidden></div><div id="view"></div><footer>Campus UCC <span>Organización y gestión de la información académica</span></footer></main></div>
 

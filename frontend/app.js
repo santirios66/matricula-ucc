@@ -180,10 +180,23 @@ function iniciarSesion(sesion){
 }
 $('#logout').onclick=()=>{
   SESION=null;data={};errors={};
+  cierraLogoMenu();
   crossfade([$('#app-workspace'),$('#app-aside')],[$('#login-screen')]);
   $('#session-greeting').textContent='';
   $('#login-error').textContent='';location.hash='';
 };
+
+// ====== Menú rápido del logo (atajo; la barra lateral sigue igual) ======
+const logoBtn=$('#logo-menu-btn'), logoMenu=$('#logo-menu');
+function cierraLogoMenu(){logoMenu.hidden=true;logoBtn.setAttribute('aria-expanded','false');}
+logoBtn.addEventListener('click',()=>{
+  if(!logoMenu.hidden){cierraLogoMenu();return;}
+  logoMenu.innerHTML=navItems().map(([k,t,i])=>`<button type="button" role="menuitem" data-page="${k}"><span aria-hidden="true">${i}</span>${esc(t)}</button>`).join('');
+  logoMenu.querySelectorAll('button').forEach(b=>b.onclick=()=>{cierraLogoMenu();go(b.dataset.page);});
+  logoMenu.hidden=false;logoBtn.setAttribute('aria-expanded','true');
+});
+document.addEventListener('click',e=>{if(!logoMenu.hidden&&!e.target.closest('#logo-menu-btn')&&!e.target.closest('#logo-menu'))cierraLogoMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!logoMenu.hidden)cierraLogoMenu();});
 // Cualquier clic en menús/botones sin sesión: aviso y no cambia de pantalla
 document.addEventListener('click',e=>{
   if(SESION) return;
@@ -234,6 +247,7 @@ function go(key){
 function navItems(){return MENUS[SESION?.rol]||[['resumen','Resumen','◈']];}
 function render(){
  if(!SESION) return;
+ cierraLogoMenu();
  const titulo={resumen:'Resumen académico',matricular:'Matricular',misnotas:'Mis notas',docs:'Mis documentos',ingresarnotas:'Ingresar notas',reportes:'Reportes',cuentas:'Cuentas'};
  $('#breadcrumb').textContent=titulo[current]||modules[current]?.title||'Resumen';
  $('#title').textContent=titulo[current]||modules[current]?.title||'Resumen académico';
@@ -247,13 +261,46 @@ function render(){
 function vistaResumen(){
  $('#refresh').hidden=false;
  if(SESION.rol==='Administrador'){
-  const pinta=()=>{
-   $('#view').innerHTML=`<section class="stats" aria-label="Totales">${Object.entries(modules).map(([k,m])=>`<button class="stat" data-page="${k}"><span>${m.icon} &nbsp; ${m.title}</span><strong>${loading?'…':data[k]?.length??'—'}</strong><span>Consultar registros →</span></button>`).join('')}</section><section class="panel"><div class="panel-top"><div><h2>Oferta académica</h2><p>Materias registradas y docentes asignados</p></div><button class="secondary" id="courses">Ver todas →</button></div>${data.materias?.length?table('materias',data.materias.slice(0,5)):vacio('▥','Aún no hay materias registradas','Registra la primera materia para armar la oferta académica.')}</section>`;
+  // ====== Panel del admin: totales reales + matrículas del periodo activo ======
+  // Periodo activo: el que cubre la fecha de hoy; si ninguno está vigente, el más reciente por fecha_fin
+  const periodoActivo=()=>{
+   const ps=data.periodos||[];
+   if(!ps.length)return null;
+   const hoy=new Date();
+   const vigente=ps.find(p=>{const a=p.fecha_inicio?new Date(p.fecha_inicio+'T00:00:00'):null,b=p.fecha_fin?new Date(p.fecha_fin+'T23:59:59'):null;return a&&b&&hoy>=a&&hoy<=b;});
+   return vigente||[...ps].sort((x,y)=>String(y.fecha_fin||'').localeCompare(String(x.fecha_fin||'')))[0];
+  };
+  // Agrupa GET /matriculas/ por id_materia en el cliente: solo cifras reales de la API
+  const calcularPanel=matriculas=>{
+   const p=periodoActivo();
+   const delPeriodo=matriculas&&p?matriculas.filter(m=>m.periodo===p.periodo):null;
+   const conteo={};
+   if(delPeriodo)delPeriodo.forEach(m=>{conteo[m.id_materia]=(conteo[m.id_materia]||0)+1;});
+   const base=(data.materias||[]).length
+    ?data.materias.map(m=>({id:m.id_materia,nombre:m.nombre_curso,n:conteo[m.id_materia]||0}))
+    :(delPeriodo?Object.keys(conteo).map(id=>({id,nombre:id,n:conteo[id]})):null);
+   return {periodo:p?p.periodo:null,total:delPeriodo?delPeriodo.length:null,porMateria:base?[...base].sort((a,b)=>b.n-a.n||String(a.id).localeCompare(String(b.id))):null};
+  };
+  const graficoBarras=r=>{
+   if(!r.porMateria)return vacio('⚠','Matrículas no disponibles','No se pudieron consultar las matrículas del periodo. Pulsa Actualizar para reintentar.');
+   if(!r.porMateria.length)return vacio('▤','Sin matrículas en este periodo','Cuando los estudiantes se matriculen, aquí verás cuántos hay por materia.');
+   const max=Math.max(1,...r.porMateria.map(x=>x.n));
+   return `<div class="barras">${r.porMateria.map(x=>`<div class="barra-fila"><span class="barra-nombre">${esc(x.id)} · ${esc(x.nombre)}</span><span class="barra-pista"><span class="barra" data-ancho="${(x.n/max*100).toFixed(1)}" style="width:0%" role="img" aria-label="${esc(x.id)}: ${x.n} matrículas"></span></span><span class="barra-valor">${x.n}</span></div>`).join('')}</div>`;
+  };
+  const pinta=r=>{
+   const subPeriodo=r&&r.periodo?`Periodo ${esc(r.periodo)}`:(r?'Sin periodo activo':'Cargando…');
+   $('#view').innerHTML=`<section class="stats" aria-label="Totales">${Object.entries(modules).map(([k,m])=>`<button class="stat" data-page="${k}"><span>${m.icon} &nbsp; ${m.title}</span><strong>${loading?'…':data[k]?.length??'—'}</strong><span>Consultar registros →</span></button>`).join('')}<div class="stat"><span>▣ &nbsp; Matrículas</span><strong>${r?esc(r.total==null?'No disponible':String(r.total)):'…'}</strong><span>${esc(subPeriodo)}</span></div></section><section class="panel"><div class="panel-top"><div><h2>Matrículas por materia</h2><p>${r&&r.periodo?`Periodo ${esc(r.periodo)} · agrupadas por materia con datos de la API`:'Consultando matrículas…'}</p></div></div>${r?graficoBarras(r):vacio('⏳','Cargando matrículas','Consultamos las matrículas del periodo activo.')}</section><section class="panel"><div class="panel-top"><div><h2>Oferta académica</h2><p>Materias registradas y docentes asignados</p></div><button class="secondary" id="courses">Ver todas →</button></div>${data.materias?.length?table('materias',data.materias.slice(0,5)):vacio('▥','Aún no hay materias registradas','Registra la primera materia para armar la oferta académica.')}</section>`;
    $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
    $('#courses').onclick=()=>go('materias');
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{$('#view').querySelectorAll('.barra').forEach(b=>{b.style.width=`${b.dataset.ancho}%`;});}));
   };
   pinta();
-  asegurarCatalogos().then(()=>{if(current==='resumen'&&!loading)pinta();});
+  (async()=>{
+   try{await asegurarCatalogos();}catch(_){}
+   let matriculas=null;
+   try{matriculas=await apiAuth('/matriculas/');}catch(_){matriculas=null;}
+   if(current==='resumen'&&SESION&&SESION.rol==='Administrador')pinta(calcularPanel(matriculas));
+  })();
  } else if(SESION.rol==='Estudiante'){
   $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Cédula ${esc(SESION.id_persona)} · rol ${esc(SESION.rol)}</p></div></div><div class="help"><article><h3>Matricular</h3><p>Arma tu carrito con las materias de tu facultad. Total entre 6 y 19 créditos.</p><button data-page="matricular">Ir a matricular →</button></article><article><h3>Mis notas</h3><p>Consulta tus calificaciones.</p><button data-page="misnotas">Ver notas →</button></article><article><h3>Mis documentos</h3><p>Recibo de matrícula y reporte de notas en PDF.</p><button data-page="docs">Descargar →</button></article></div></section>`;
   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
