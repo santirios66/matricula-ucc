@@ -17,6 +17,8 @@ try:
     from app.routers.notas import router as notas_router
     from app.routers.auth import router as auth_router
     from app.routers.pdf import router as pdf_router
+    from app.routers.periodos import router as periodos_router
+    from app.routers.tareas import router as tareas_router
 except ImportError:
     from routers.facultades import router as facultades_router
     from routers.programas import router as programas_router
@@ -27,6 +29,8 @@ except ImportError:
     from routers.notas import router as notas_router
     from routers.auth import router as auth_router
     from routers.pdf import router as pdf_router
+    from routers.periodos import router as periodos_router
+    from routers.tareas import router as tareas_router
 
 app = FastAPI(title="Matrícula Universitaria API")
 
@@ -47,6 +51,8 @@ app.include_router(matriculas_router)
 app.include_router(notas_router)
 app.include_router(auth_router)
 app.include_router(pdf_router)
+app.include_router(periodos_router)
+app.include_router(tareas_router)
 
 
 @app.get("/health")

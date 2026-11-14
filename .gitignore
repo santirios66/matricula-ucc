@@ -4,4 +4,5 @@ database/respaldo_matricula.sql
 __pycache__/
 .venv/
 *.pdf
+backend/archivos/
 node_modules/

@@ -4,6 +4,7 @@
 # ==========================================
 
 import uuid
+from datetime import date
 
 import psycopg2
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -78,17 +79,45 @@ def listar_matriculas(sesion: dict = Depends(autenticar)):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def crear_matricula(matricula: MatriculaCreate):
-    """Crea una matrícula. Devuelve 404 si el estudiante o la materia no existen, 409 si ya está matriculada o se supera el máximo de 19 créditos en el periodo."""
+def crear_matricula(matricula: MatriculaCreate, sesion: dict = Depends(autenticar)):
+    """Crea una matrícula con validaciones de rol, periodo, cupos, duplicados y créditos."""
     cedula = matricula.cedula.strip()
     id_materia = matricula.id_materia.strip()
     periodo = matricula.periodo.strip()
     id_matricula = str(uuid.uuid4())[:8]
     estado = "Activa"
 
+    # Regla de rol: un estudiante solo puede matricular su propia cédula
+    if sesion["rol"] == ROL_ESTUDIANTE and cedula != sesion["id_persona"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo puedes matricular tu propia cédula",
+        )
+
     conn = obtener_conexion()
     try:
         with conn.cursor() as cur:
+            # 0. El periodo debe existir y estar vigente
+            cur.execute(
+                "SELECT fecha_inicio, fecha_fin FROM periodos WHERE periodo = %s",
+                (periodo,),
+            )
+            fila_periodo = cur.fetchone()
+            if fila_periodo is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"El periodo '{periodo}' no existe o no está abierto para matrícula",
+                )
+            fecha_inicio, fecha_fin = fila_periodo
+            hoy = date.today()
+            if not (fecha_inicio <= hoy <= fecha_fin):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"El periodo '{periodo}' está fuera del rango de matrícula "
+                        f"({fecha_inicio} a {fecha_fin}); hoy es {hoy}"
+                    ),
+                )
             # 1. La cédula debe existir en estudiantes
             cur.execute(
                 "SELECT 1 FROM estudiantes WHERE id_estudiante = %s",
@@ -99,9 +128,9 @@ def crear_matricula(matricula: MatriculaCreate):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No existe el estudiante con cédula '{cedula}'",
                 )
-            # 2. La materia debe existir en materias (y se toman sus créditos)
+            # 2. La materia debe existir en materias (créditos, cupos y nombre)
             cur.execute(
-                "SELECT creditos FROM materias WHERE id_materia = %s",
+                "SELECT creditos, cupos, nombre_curso FROM materias WHERE id_materia = %s",
                 (id_materia,),
             )
             fila_materia = cur.fetchone()
@@ -110,7 +139,7 @@ def crear_matricula(matricula: MatriculaCreate):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No existe la materia con ID '{id_materia}'",
                 )
-            creditos_materia = fila_materia[0]
+            creditos_materia, cupos_materia, nombre_materia = fila_materia
             # 3. El estudiante no puede repetir la misma materia en el mismo periodo
             cur.execute(
                 "SELECT 1 FROM matriculas WHERE cedula = %s AND id_materia = %s AND periodo = %s",
@@ -121,7 +150,21 @@ def crear_matricula(matricula: MatriculaCreate):
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"El estudiante '{cedula}' ya tiene matriculada la materia '{id_materia}' en el periodo '{periodo}'",
                 )
-            # 4. Regla de créditos: SUM calculado en SQL, máximo 19 por periodo
+            # 4. Regla de cupos: cupos menos matriculados de esa materia en el periodo
+            cur.execute(
+                "SELECT COUNT(*) FROM matriculas WHERE id_materia = %s AND periodo = %s",
+                (id_materia, periodo),
+            )
+            matriculados = int(cur.fetchone()[0])
+            if matriculados >= cupos_materia:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"La materia '{nombre_materia}' no tiene cupos disponibles "
+                        f"en el periodo '{periodo}' ({matriculados} de {cupos_materia})"
+                    ),
+                )
+            # 5. Regla de créditos: SUM calculado en SQL, máximo 19 por periodo
             cur.execute(
                 "SELECT COALESCE(SUM(creditos), 0) FROM matriculas WHERE cedula = %s AND periodo = %s",
                 (cedula, periodo),
@@ -182,11 +225,11 @@ def crear_matricula(matricula: MatriculaCreate):
 
 
 @router.post("/lote", status_code=status.HTTP_201_CREATED)
-def crear_matriculas_lote(lote: MatriculaLoteCreate):
+def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(autenticar)):
     """Matricula varias materias del carrito en una sola transacción.
 
-    Valida el total de créditos del periodo (entre 6 y 19) y que ninguna
-    materia esté ya matriculada. Si algo falla, no se guarda nada.
+    Valida rol, periodo vigente, cupos, duplicados y el total de créditos
+    del periodo (entre 6 y 19). Si algo falla, no se guarda nada.
     """
     cedula = lote.cedula.strip()
     periodo = lote.periodo.strip()
@@ -197,9 +240,37 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate):
             detail="Ninguna materia puede estar vacía",
         )
 
+    # Regla de rol: un estudiante solo puede matricular su propia cédula
+    if sesion["rol"] == ROL_ESTUDIANTE and cedula != sesion["id_persona"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo puedes matricular tu propia cédula",
+        )
+
     conn = obtener_conexion()
     try:
         with conn.cursor() as cur:
+            # 0. El periodo debe existir y estar vigente
+            cur.execute(
+                "SELECT fecha_inicio, fecha_fin FROM periodos WHERE periodo = %s",
+                (periodo,),
+            )
+            fila_periodo = cur.fetchone()
+            if fila_periodo is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"El periodo '{periodo}' no existe o no está abierto para matrícula",
+                )
+            fecha_inicio, fecha_fin = fila_periodo
+            hoy = date.today()
+            if not (fecha_inicio <= hoy <= fecha_fin):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"El periodo '{periodo}' está fuera del rango de matrícula "
+                        f"({fecha_inicio} a {fecha_fin}); hoy es {hoy}"
+                    ),
+                )
             # 1. El estudiante debe existir
             cur.execute(
                 "SELECT 1 FROM estudiantes WHERE id_estudiante = %s",
@@ -259,6 +330,25 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate):
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Ya están matriculadas en el periodo '{periodo}': {', '.join(repetidas)}",
                 )
+            # 4b. Cupos de cada materia del carrito (todo antes de insertar nada)
+            cur.execute(
+                "SELECT mat.id_materia, mat.nombre_curso, mat.cupos, "
+                "COUNT(m.id_matricula) AS matriculados "
+                "FROM materias mat "
+                "LEFT JOIN matriculas m ON m.id_materia = mat.id_materia AND m.periodo = %s "
+                "WHERE mat.id_materia = ANY(%s) "
+                "GROUP BY mat.id_materia, mat.nombre_curso, mat.cupos",
+                (periodo, id_materias),
+            )
+            for id_materia, nombre_materia, cupos_materia, matriculados in cur.fetchall():
+                if int(matriculados) >= int(cupos_materia):
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=(
+                            f"La materia '{nombre_materia}' no tiene cupos disponibles "
+                            f"en el periodo '{periodo}' ({matriculados} de {cupos_materia})"
+                        ),
+                    )
             # 5. Inserta todas en una sola transacción
             creadas = []
             for id_materia in id_materias:
