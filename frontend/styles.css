@@ -171,3 +171,44 @@ body.tema-oscuro #btn-tema:hover{background:#1a3d54}
 .llegada-datos{animation:llegada-datos .25s ease-out}
 @keyframes llegada-datos{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.llegada-datos{animation:none}}
+
+/* ====== Tareas y entregas ====== */
+textarea{display:block;width:100%;padding:12px;border:1px solid #cfdce4;border-radius:7px;background:white;color:#183448;margin-top:7px;font:inherit;resize:vertical}
+#form-tarea{padding:0 23px 23px}
+#t-error{color:#b33232;font-size:13px;margin:12px 0 0}
+.campo-ancho{grid-column:1/-1}
+.lista-tareas{display:grid;gap:12px;padding:0 23px 23px}
+.tarea-item{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:white}
+.tarea-cab{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+.tarea-titulo{display:flex;flex-direction:column;gap:8px;min-width:0}
+.tarea-titulo strong{font-size:14.5px;color:#182f43}
+.tarea-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tarea-lado{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tarea-detail{margin-top:14px;border-top:1px dashed var(--line);padding-top:14px}
+.tarea-detail h3{font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:#4a6274;margin:16px 0 8px}
+.tarea-detail h3:first-child{margin-top:0}
+.form-entrega{margin-top:14px;border-top:1px dashed var(--line);padding-top:14px}
+.form-entrega .fields{margin-top:12px}
+.lista-no-entrega{margin:0;padding:0;list-style:none;display:grid;gap:8px;font-size:13px;color:#466073}
+.lista-no-entrega .id{margin-right:6px}
+.error-archivo{color:#b33232;font-size:12px;margin:6px 0 0;min-height:0}
+.chip.estado-entregado{background:#e4f5ea;color:#1f7a44}
+.chip.estado-pendiente{background:#fdf4e0;color:#9a6b0a}
+.chip.estado-no-entrego{background:#fbe9e9;color:#b02a37}
+.chip.chip-entregas{background:#eef5f9;color:#22577a}
+button.chip{cursor:pointer;border:1px solid #d6e0e7;background:#eef5f9;color:#365568}
+button.chip:hover{filter:brightness(.97)}
+@media(max-width:760px){.tarea-cab{align-items:flex-start;flex-direction:column;gap:10px}.lista-tareas{padding:0 18px 18px}}
+
+/* ====== Tareas en tema oscuro ====== */
+body.tema-oscuro .tarea-item{background:#133145;border-color:#28475a}
+body.tema-oscuro .tarea-titulo strong{color:#e6f1f7}
+body.tema-oscuro .tarea-detail,body.tema-oscuro .form-entrega{border-top-color:#23414f}
+body.tema-oscuro .tarea-detail h3{color:#9db4c0}
+body.tema-oscuro .lista-no-entrega{color:#a9c2cf}
+body.tema-oscuro textarea{background:#0f2a3b;border:1px solid #2a4a5e;color:#d9e6ee}
+body.tema-oscuro .chip.estado-entregado{background:#12352a;color:#8fd8b4}
+body.tema-oscuro .chip.estado-pendiente{background:#3b2f12;color:#ecc76d}
+body.tema-oscuro .chip.estado-no-entrego{background:#3b1219;color:#ff9299}
+body.tema-oscuro .chip.chip-entregas{background:#12414a;color:#7fd8cc}
+body.tema-oscuro button.chip{background:#1c3d52;border-color:#2a4a5e;color:#bfd0dc}

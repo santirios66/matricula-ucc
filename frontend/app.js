@@ -13,10 +13,10 @@ const MENUS = {
     ['periodos','Periodos','⏱'], ['cuentas','Cuentas','👤'],
   ],
   Estudiante: [
-    ['matricular','Matricular','✓'], ['misnotas','Mis notas','✎'], ['docs','Mis documentos','⇩'],
+    ['matricular','Matricular','✓'], ['misnotas','Mis notas','✎'], ['mistareas','Mis tareas','❑'], ['docs','Mis documentos','⇩'],
   ],
   Profesor: [
-    ['ingresarnotas','Ingresar notas','✎'], ['reportes','Reportes','⇩'],
+    ['ingresarnotas','Ingresar notas','✎'], ['tareas','Tareas','❑'], ['reportes','Reportes','⇩'],
   ],
 };
 
@@ -271,13 +271,13 @@ function navItems(){return MENUS[SESION?.rol]||[['resumen','Resumen','◈']];}
 function render(){
  if(!SESION) return;
  cierraLogoMenu();
- const titulo={resumen:'Resumen académico',matricular:'Matricular',misnotas:'Mis notas',docs:'Mis documentos',ingresarnotas:'Ingresar notas',reportes:'Reportes',cuentas:'Cuentas'};
+ const titulo={resumen:'Resumen académico',matricular:'Matricular',misnotas:'Mis notas',mistareas:'Mis tareas',docs:'Mis documentos',ingresarnotas:'Ingresar notas',tareas:'Tareas',reportes:'Reportes',cuentas:'Cuentas'};
  $('#breadcrumb').textContent=titulo[current]||modules[current]?.title||'Resumen';
  $('#title').textContent=titulo[current]||modules[current]?.title||'Resumen académico';
- $('#subtitle').textContent={resumen:'Todo según tu rol: '+SESION.rol,matricular:'Arma tu carrito y confirma: total entre 6 y 19 créditos.',misnotas:'Tus calificaciones registradas.',docs:'Descarga tus reportes en PDF.',ingresarnotas:'Califica a los estudiantes de tus materias.',reportes:'Reporte de notas de tus estudiantes.',cuentas:'Crea cuentas y restablece claves.',periodos:'Ventanas de matrícula.'}[current]||modules[current]?.description||'';
+  $('#subtitle').textContent={resumen:'Todo según tu rol: '+SESION.rol,matricular:'Arma tu carrito y confirma: total entre 6 y 19 créditos.',misnotas:'Tus calificaciones registradas.',mistareas:'Las tareas de tus materias: entrega a tiempo.',docs:'Descarga tus reportes en PDF.',ingresarnotas:'Califica a los estudiantes de tus materias.',tareas:'Crea tareas en tus materias y revisa quién entregó.',reportes:'Reporte de notas de tus estudiantes.',cuentas:'Crea cuentas y restablece claves.',periodos:'Ventanas de matrícula.'}[current]||modules[current]?.description||'';
  $('#nav').innerHTML=navItems().map(([k,t,i])=>`<button data-page="${k}" class="${k===current?'active':''}" ${k===current?'aria-current="page"':''}><span aria-hidden="true">${i}</span>${t}</button>`).join('');
  $('#nav').querySelectorAll('button').forEach(b=>b.onclick=()=>go(b.dataset.page));
- const vistas={resumen:vistaResumen,matricular:vistaMatricular,misnotas:vistaMisNotas,docs:vistaDocs,ingresarnotas:vistaIngresarNotas,reportes:vistaReportes,cuentas:vistaCuentas};
+ const vistas={resumen:vistaResumen,matricular:vistaMatricular,misnotas:vistaMisNotas,mistareas:vistaMisTareas,docs:vistaDocs,ingresarnotas:vistaIngresarNotas,tareas:vistaTareas,reportes:vistaReportes,cuentas:vistaCuentas};
  if(vistas[current]){vistas[current]();return;}
  vistaCatalogo();
 }
@@ -310,9 +310,10 @@ function vistaResumen(){
    const max=Math.max(1,...r.porMateria.map(x=>x.n));
    return `<div class="barras">${r.porMateria.map(x=>`<div class="barra-fila"><span class="barra-nombre">${esc(x.id)} · ${esc(x.nombre)}</span><span class="barra-pista"><span class="barra" data-ancho="${(x.n/max*100).toFixed(1)}" style="width:0%" role="img" aria-label="${esc(x.id)}: ${x.n} matrículas"></span></span><span class="barra-valor">${x.n}</span></div>`).join('')}</div>`;
   };
-  const pinta=r=>{
+  const pinta=(r,tareas)=>{
    const subPeriodo=r&&r.periodo?`Periodo ${esc(r.periodo)}`:(r?'Sin periodo activo':'Cargando…');
-   $('#view').innerHTML=`<section class="stats" aria-label="Totales">${Object.entries(modules).map(([k,m])=>`<button class="stat" data-page="${k}"><span>${m.icon} &nbsp; ${m.title}</span><strong>${loading?'…':data[k]?.length??'—'}</strong><span>Consultar registros →</span></button>`).join('')}<div class="stat"><span>▣ &nbsp; Matrículas</span><strong>${r?esc(r.total==null?'No disponible':String(r.total)):'…'}</strong><span>${esc(subPeriodo)}</span></div></section><section class="panel"><div class="panel-top"><div><h2>Matrículas por materia</h2><p>${r&&r.periodo?`Periodo ${esc(r.periodo)} · agrupadas por materia con datos de la API`:'Consultando matrículas…'}</p></div></div>${r?graficoBarras(r):vacio('⏳','Cargando matrículas','Consultamos las matrículas del periodo activo.')}</section><section class="panel"><div class="panel-top"><div><h2>Oferta académica</h2><p>Materias registradas y docentes asignados</p></div><button class="secondary" id="courses">Ver todas →</button></div>${data.materias?.length?table('materias',data.materias.slice(0,5)):vacio('▥','Aún no hay materias registradas','Registra la primera materia para armar la oferta académica.')}</section>`;
+   const totalEntregas=(tareas||[]).reduce((s,t)=>s+(t.entregas_recibidas||0),0);
+   $('#view').innerHTML=`<section class="stats" aria-label="Totales">${Object.entries(modules).map(([k,m])=>`<button class="stat" data-page="${k}"><span>${m.icon} &nbsp; ${m.title}</span><strong>${loading?'…':data[k]?.length??'—'}</strong><span>Consultar registros →</span></button>`).join('')}<div class="stat"><span>▣ &nbsp; Matrículas</span><strong>${r?esc(r.total==null?'No disponible':String(r.total)):'…'}</strong><span>${esc(subPeriodo)}</span></div><div class="stat"><span>❑ &nbsp; Tareas</span><strong>${tareas?esc(String(tareas.length)):'…'}</strong><span>${tareas?`${totalEntregas} entregas recibidas`:'Consultando tareas…'}</span></div></section><section class="panel"><div class="panel-top"><div><h2>Matrículas por materia</h2><p>${r&&r.periodo?`Periodo ${esc(r.periodo)} · agrupadas por materia con datos de la API`:'Consultando matrículas…'}</p></div></div>${r?graficoBarras(r):vacio('⏳','Cargando matrículas','Consultamos las matrículas del periodo activo.')}</section><section class="panel"><div class="panel-top"><div><h2>Oferta académica</h2><p>Materias registradas y docentes asignados</p></div><button class="secondary" id="courses">Ver todas →</button></div>${data.materias?.length?table('materias',data.materias.slice(0,5)):vacio('▥','Aún no hay materias registradas','Registra la primera materia para armar la oferta académica.')}</section>`;
    $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
    $('#courses').onclick=()=>go('materias');
    requestAnimationFrame(()=>requestAnimationFrame(()=>{$('#view').querySelectorAll('.barra').forEach(b=>{b.style.width=`${b.dataset.ancho}%`;});}));
@@ -320,9 +321,11 @@ function vistaResumen(){
   pinta();
   (async()=>{
    try{await asegurarCatalogos();}catch(_){}
-   let matriculas=null;
-   try{matriculas=await apiAuth('/matriculas/');}catch(_){matriculas=null;}
-   if(current==='resumen'&&SESION&&SESION.rol==='Administrador'){pinta(calcularPanel(matriculas));animaLlegada($('#view'));}
+   let matriculas=null,tareas=null;
+   const resultados=await Promise.allSettled([apiAuth('/matriculas/'),apiAuth('/tareas/')]);
+   matriculas=resultados[0].status==='fulfilled'?resultados[0].value:null;
+   tareas=resultados[1].status==='fulfilled'?resultados[1].value:null;
+   if(current==='resumen'&&SESION&&SESION.rol==='Administrador'){pinta(calcularPanel(matriculas),tareas);animaLlegada($('#view'));}
   })();
  } else if(SESION.rol==='Estudiante'){
   $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Cédula ${esc(SESION.id_persona)} · rol ${esc(SESION.rol)}</p></div></div><div class="help"><article><h3>Matricular</h3><p>Arma tu carrito con las materias de tu facultad. Total entre 6 y 19 créditos.</p><button data-page="matricular">Ir a matricular →</button></article><article><h3>Mis notas</h3><p>Consulta tus calificaciones.</p><button data-page="misnotas">Ver notas →</button></article><article><h3>Mis documentos</h3><p>Recibo de matrícula y reporte de notas en PDF.</p><button data-page="docs">Descargar →</button></article></div></section>`;
@@ -492,6 +495,133 @@ function vistaReportes(){
  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Reporte de notas de tus estudiantes</h2><p>Escribe la cédula de un estudiante matriculado en tus materias</p></div></div><div class="fields"><div><label for="cedula-reporte">Cédula</label><input id="cedula-reporte" type="text" placeholder="1001"></div></div><div class="ayuda-reportes"><article><h3>Reporte de notas</h3><p>Boletín con las calificaciones del estudiante en tus materias.</p><button id="pdf-notas-prof">Descargar notas ⇩</button></article></div></section>`;
  const cedula=()=>encodeURIComponent(($('#cedula-reporte').value||'').trim());
  $('#pdf-notas-prof').onclick=()=>{const c=cedula();if(c)descargarPDF(`/pdf/notas/${c}`,`Reporte_Notas_${c}.pdf`);};
+}
+
+// ====== Tareas: helpers compartidos ======
+const ARCHIVO_MAX = 20 * 1024 * 1024; // 20 MB
+const EXT_ARCHIVO = ['pdf', 'mp4', 'webm'];
+function validaArchivo(archivo){
+  // Validación en el navegador ANTES de enviar; la API vuelve a validar en el servidor
+  if(!archivo) return 'Elige un archivo.';
+  const ext = (archivo.name.split('.').pop() || '').toLowerCase();
+  if(!EXT_ARCHIVO.includes(ext)) return `Tipo no permitido: solo PDF, MP4 o WebM (recibido .${ext || 'sin extensión'}).`;
+  if(archivo.size > ARCHIVO_MAX) return `El archivo supera el máximo de 20 MB (${(archivo.size / 1048576).toFixed(1)} MB).`;
+  return '';
+}
+function formatFecha(valor){
+  if(!valor) return '—';
+  const d = new Date(valor);
+  return isNaN(d.getTime()) ? String(valor) : d.toLocaleString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+const plazoVigente = fechaLimite => !!fechaLimite && new Date(fechaLimite) >= new Date();
+
+// ====== Profesor: Tareas (crear + revisar entregas) ======
+async function vistaTareas(){
+ $('#refresh').hidden=false;
+ if(SESION.rol!=='Profesor'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de profesor adecuada.');return;}
+ $('#view').innerHTML=vacio('⏳','Cargando tareas','Un momento, consultamos tus materias y tareas.');
+ try{
+  await refreshCatalogos();
+  const mias=(data.materias||[]).filter(m=>m.id_profesor===SESION.id_persona);
+  if(!mias.length){$('#view').innerHTML=vacio('❑','No tienes materias asignadas','Cuando te asignen materias podrás crear tareas aquí.');return;}
+  const tareas=await apiAuth('/tareas/');
+  const opciones=mias.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
+  $('#view').innerHTML=`${franja([{etiqueta:'Tareas creadas',valor:tareas.length},{etiqueta:'Materias asignadas',valor:mias.length}])}<section class="panel"><div class="panel-top"><div><h2>Nueva tarea</h2><p>Los campos con * son obligatorios. Archivo de apoyo opcional: PDF, MP4 o WebM, máximo 20 MB</p></div></div><form id="form-tarea"><div class="fields"><div><label for="t-materia">Materia *</label><select id="t-materia" required>${opciones}</select></div><div><label for="t-limite">Fecha y hora límite *</label><input id="t-limite" type="datetime-local" required></div><div class="campo-ancho"><label for="t-titulo">Título *</label><input id="t-titulo" type="text" maxlength="120" required placeholder="Taller 1 - Programación en Java"></div><div class="campo-ancho"><label for="t-archivo">Archivo de apoyo (opcional)</label><input id="t-archivo" type="file" accept=".pdf,.mp4,.webm"><p class="error-archivo" id="t-archivo-error" role="alert"></p></div><div class="campo-ancho"><label for="t-desc">Descripción *</label><textarea id="t-desc" rows="3" required placeholder="Instrucciones, entregables y formato esperado"></textarea></div></div><p id="t-error" role="alert"></p><div class="form-actions"><button type="submit" id="t-crear">Crear tarea</button></div></form></section><section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Pulsa "Ver entregas" para ver quién entregó y quién no</p></div></div><div id="lista-tareas" class="lista-tareas"></div></section>`;
+  animaLlegada($('#view'));
+  $('#t-archivo').onchange=e=>{const msg=validaArchivo(e.target.files[0]);$('#t-archivo-error').textContent=msg;if(msg)e.target.value='';};
+  $('#form-tarea').onsubmit=async e=>{
+   e.preventDefault();
+   $('#t-error').textContent='';
+   const archivo=$('#t-archivo').files[0];
+   if(archivo){const msgArchivo=validaArchivo(archivo);if(msgArchivo){$('#t-archivo-error').textContent=msgArchivo;return;}}
+   const btn=$('#t-crear');btn.disabled=true;btn.textContent='Creando tarea…';
+   try{
+    const fd=new FormData();
+    fd.append('id_materia',$('#t-materia').value.trim());
+    fd.append('titulo',$('#t-titulo').value.trim());
+    fd.append('descripcion',$('#t-desc').value.trim());
+    fd.append('fecha_limite',$('#t-limite').value);
+    if(archivo)fd.append('archivo',archivo);
+    const creada=await apiAuth('/tareas/',{method:'POST',body:fd});
+    notice(`Tarea creada: ${creada.titulo} (${creada.id_tarea}).`,true);
+    await vistaTareas();
+   }catch(error){$('#t-error').textContent=mensajeRol(error);btn.disabled=false;btn.textContent='Crear tarea';}
+  };
+  const pintarLista=()=>{
+   const zona=$('#lista-tareas');
+   if(!tareas.length){zona.innerHTML=vacio('❑','Aún no has creado tareas','Crea la primera con el formulario "Nueva tarea" de arriba.');return;}
+   zona.innerHTML=tareas.map(t=>`<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta"><span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?'<span class="chip">⇩ Con archivo de apoyo</span>':''}</span></div><div class="tarea-lado"><span class="chip chip-entregas">${t.entregas_recibidas??0} de ${t.matriculados??0} entregaron</span><button class="secondary ver-entregas" data-id="${esc(t.id_tarea)}">Ver entregas ▾</button></div></div><div class="tarea-detail" id="detalle-${esc(t.id_tarea)}" hidden></div></article>`).join('');
+   zona.querySelectorAll('.ver-entregas').forEach(b=>b.onclick=()=>verEntregas(b.dataset.id,b));
+  };
+  pintarLista();
+  animaLlegada($('#lista-tareas'));
+ }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus tareas',mensajeRol(error));}
+}
+async function verEntregas(idTarea, boton){
+ const caja=$(`#detalle-${idTarea}`);
+ if(!caja){return;}
+ if(!caja.hidden){caja.hidden=true;boton.textContent='Ver entregas ▾';return;}
+ boton.disabled=true;boton.textContent='Cargando entregas…';
+ try{
+  const res=await apiAuth(`/tareas/${idTarea}/entregas`);
+  const entregas=res.entregas||[], sin=res.no_entregaron||[];
+  const filas=entregas.map(e=>`<tr><td><span class="id">${esc(e.cedula)}</span></td><td>${esc(e.nombre)}</td><td>${esc(formatFecha(e.subida_en))}</td><td>${esc(e.comentario||'—')}</td><td><button class="secondary descargar-entrega" data-tarea="${esc(idTarea)}" data-id="${esc(e.id_entrega)}" data-cedula="${esc(e.cedula)}">Descargar ⇩</button></td></tr>`).join('');
+  caja.innerHTML=`<h3>Entregas recibidas (${entregas.length})</h3>${entregas.length?`<div class="table-wrap"><table><thead><tr><th>Cédula</th><th>Estudiante</th><th>Subida</th><th>Comentario</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>`:vacio('⇧','Sin entregas todavía','Cuando los estudiantes suban su archivo, aparecerá aquí con botón de descarga.')}<h3>No han entregado (${sin.length})</h3>${sin.length?`<ul class="lista-no-entrega">${sin.map(e=>`<li><span class="id">${esc(e.cedula)}</span> ${esc(e.nombre)}</li>`).join('')}</ul>`:vacio('✓','Todos entregaron','Los estudiantes matriculados de esta materia ya subieron su entrega.')}`;
+  caja.querySelectorAll('.descargar-entrega').forEach(b=>b.onclick=()=>descargarPDF(`/tareas/${b.dataset.tarea}/entregas/${b.dataset.id}/archivo`,`Entrega_${b.dataset.cedula}_${b.dataset.id}.pdf`));
+  caja.hidden=false;boton.textContent='Ocultar entregas ▴';
+ }catch(error){caja.innerHTML=vacio('⚠','No se pudieron cargar las entregas',mensajeRol(error));caja.hidden=false;boton.textContent='Reintentar ▾';}
+ finally{boton.disabled=false;}
+}
+
+// ====== Estudiante: Mis tareas (estado + subir entrega) ======
+async function vistaMisTareas(){
+ $('#refresh').hidden=false;
+ if(SESION.rol!=='Estudiante'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de estudiante adecuada.');return;}
+ $('#view').innerHTML=vacio('⏳','Cargando tareas','Un momento, consultamos las tareas de tus materias.');
+ try{
+  const tareas=await apiAuth('/tareas/');
+  const conteo={Entregado:0,Pendiente:0,'No entregó':0};
+  tareas.forEach(t=>{if(t.estado_entrega in conteo)conteo[t.estado_entrega]++;});
+  $('#view').innerHTML=`${franja([{etiqueta:'Tareas',valor:tareas.length},{etiqueta:'Entregadas',valor:conteo.Entregado},{etiqueta:'Pendientes',valor:conteo.Pendiente},{etiqueta:'No entregó',valor:conteo['No entregó']}])}<section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Sube tu archivo antes de la fecha límite: PDF, MP4 o WebM, máximo 20 MB</p></div></div><div id="lista-mis-tareas" class="lista-tareas"></div></section>`;
+  const zona=$('#lista-mis-tareas');
+  if(!tareas.length){zona.innerHTML=vacio('❑','No hay tareas en tus materias','Cuando tus profesores publiquen tareas, aparecerán aquí con su fecha límite.');animaLlegada($('#view'));return;}
+  zona.innerHTML=tareas.map(t=>{
+   const vigente=plazoVigente(t.fecha_limite);
+   const claseEstado=t.estado_entrega==='Entregado'?'estado-entregado':t.estado_entrega==='Pendiente'?'estado-pendiente':'estado-no-entrego';
+   return `<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta"><span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?`<button type="button" class="chip descarga-apoyo" data-id="${esc(t.id_tarea)}">⇩ Descargar apoyo</button>`:''}</span></div><div class="tarea-lado"><span class="chip ${claseEstado}">${esc(t.estado_entrega)}${t.estado_entrega==='Entregado'&&t.fecha_entrega?` · ${esc(formatFecha(t.fecha_entrega))}`:''}</span>${vigente?`<button type="button" class="subir-entrega" data-id="${esc(t.id_tarea)}">Subir entrega ⇧</button>`:''}</div></div>${vigente?`<form class="form-entrega" id="form-entrega-${esc(t.id_tarea)}" hidden><div class="fields"><div><label for="archivo-${esc(t.id_tarea)}">Tu archivo (PDF, MP4 o WebM, máx. 20 MB) *</label><input id="archivo-${esc(t.id_tarea)}" type="file" accept=".pdf,.mp4,.webm" required><p class="error-archivo" role="alert"></p></div><div><label for="comentario-${esc(t.id_tarea)}">Comentario para el profesor (opcional)</label><input id="comentario-${esc(t.id_tarea)}" type="text" maxlength="300" placeholder="Ej. Adjunto el taller con capturas"></div></div><div class="form-actions"><button type="submit">Enviar entrega</button></div></form>`:''}</article>`;
+  }).join('');
+  zona.querySelectorAll('.descarga-apoyo').forEach(b=>b.onclick=()=>descargarPDF(`/tareas/${b.dataset.id}/apoyo`,`Apoyo_${b.dataset.id}.pdf`));
+  zona.querySelectorAll('.subir-entrega').forEach(b=>b.onclick=()=>{
+   const form=$(`#form-entrega-${b.dataset.id}`);
+   form.hidden=!form.hidden;
+   b.textContent=form.hidden?'Subir entrega ⇧':'Cerrar entrega ⇕';
+   if(!form.hidden)form.querySelector('input[type=file]').focus();
+  });
+  zona.querySelectorAll('.form-entrega').forEach(form=>{
+   const id=form.id.replace('form-entrega-','');
+   const input=$(`#archivo-${id}`), comentario=$(`#comentario-${id}`), err=form.querySelector('.error-archivo');
+   input.onchange=e=>{const msg=validaArchivo(e.target.files[0]);err.textContent=msg;if(msg)e.target.value='';};
+   form.onsubmit=async e=>{
+    e.preventDefault();
+    err.textContent='';
+    const archivo=input.files[0];
+    const msg=validaArchivo(archivo);
+    if(msg){err.textContent=msg;return;}
+    const btn=form.querySelector('button[type=submit]');
+    btn.disabled=true;btn.textContent='Subiendo…';
+    try{
+     const fd=new FormData();
+     fd.append('archivo',archivo);
+     const texto=(comentario.value||'').trim();
+     if(texto)fd.append('comentario',texto);
+     await apiAuth(`/tareas/${id}/entregas`,{method:'POST',body:fd});
+     notice('Entrega subida correctamente. Tu estado ahora es "Entregado".',true);
+     await vistaMisTareas();
+    }catch(error){notice(mensajeRol(error));btn.disabled=false;btn.textContent='Enviar entrega';}
+   };
+  });
+  animaLlegada($('#view'));
+ }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus tareas',mensajeRol(error));}
 }
 
 // ====== Admin: Cuentas ======
