@@ -4,15 +4,17 @@
 # Reutiliza seguridad.py y db_postgres.py; no duplica su lógica.
 # ==========================================
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 try:
     from app.seguridad import crear_hash, generar_clave_temporal, verificar_clave
     from app.db_postgres import actualizar_clave, existe, insertar, obtener_usuario
+    from app.seguridad_api import require_admin
 except ImportError:
     from seguridad import crear_hash, generar_clave_temporal, verificar_clave
     from db_postgres import actualizar_clave, existe, insertar, obtener_usuario
+    from seguridad_api import require_admin
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
