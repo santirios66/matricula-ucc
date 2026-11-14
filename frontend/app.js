@@ -246,9 +246,8 @@ async function vistaMisNotas(){
  $('#view').innerHTML='<div class="empty">Cargando…</div>';
  try{
   const notas=await apiAuth('/notas/');
-  const propias=notas.filter(n=>true);
-  if(!propias.length){$('#view').innerHTML='<div class="empty">Aún no tienes notas registradas.</div>';return;}
-  const filas=propias.map(n=>`<tr><td><span class="id">${esc(n.id_nota)}</span></td><td>${esc(n.id_materia)}</td><td>${n.nota1??'—'}</td><td>${n.nota2??'—'}</td><td>${n.nota3??'—'}</td><td><b>${n.definitiva??'—'}</b></td><td>${esc(n.estado||'Sin notas')}</td></tr>`).join('');
+  if(!notas.length){$('#view').innerHTML='<div class="empty">Aún no tienes notas registradas.</div>';return;}
+  const filas=notas.map(n=>`<tr><td><span class="id">${esc(n.id_nota)}</span></td><td>${esc(n.id_materia)}</td><td>${n.nota1??'—'}</td><td>${n.nota2??'—'}</td><td>${n.nota3??'—'}</td><td><b>${n.definitiva??'—'}</b></td><td>${esc(n.estado||'Sin notas')}</td></tr>`).join('');
   $('#view').innerHTML=`<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>`;
  }catch(error){$('#view').innerHTML=`<div class="empty">${esc(mensajeRol(error))}</div>`;}
 }
