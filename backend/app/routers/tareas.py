@@ -58,6 +58,24 @@ def _tipo_valido(tipo: str) -> str:
     return tipo
 
 
+MOMENTOS_VALIDOS = (1, 2, 3)
+
+
+def _momento_valido(momento) -> int:
+    """Devuelve el momento (1, 2 o 3); 422 si falta o está fuera de rango."""
+    if momento is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El momento es obligatorio; usa 1, 2 o 3",
+        )
+    if momento not in MOMENTOS_VALIDOS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"El momento {momento} no es válido; usa 1, 2 o 3",
+        )
+    return momento
+
+
 def _calificacion_valida(valor: float) -> float:
     """Valida que la calificación esté entre 0.0 y 5.0; 422 si no."""
     try:
@@ -137,13 +155,15 @@ def crear_tarea(
     descripcion: str = Form(...),
     fecha_limite: str = Form(...),
     tipo: str = Form(...),
+    momento: int | None = Form(default=None),
     archivo: UploadFile | None = File(default=None),
     sesion: dict = Depends(autenticar),
 ):
-    """Crea una tarea en una materia propia del profesor, con tipo y apoyo opcional (PDF/MP4/WebM).
+    """Crea una tarea en una materia propia del profesor, con tipo, momento (1, 2 o 3)
+    y apoyo opcional (PDF/MP4/WebM).
 
-    El tipo es obligatorio: taller, quiz, examen o trabajo. Para examen y quiz
-    la actividad se califica directamente, sin entrega de archivo.
+    El tipo y el momento son obligatorios. Para examen y quiz la actividad
+    se califica directamente, sin entrega de archivo.
     """
     if sesion["rol"] != ROL_PROFESOR:
         raise HTTPException(
@@ -159,6 +179,7 @@ def crear_tarea(
             detail="Los campos id_materia, titulo, descripcion y tipo son obligatorios",
         )
     tipo = _tipo_valido(tipo)
+    momento = _momento_valido(momento)
     if len(titulo) > 120:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -187,12 +208,12 @@ def crear_tarea(
                 extension = validar_archivo(archivo, campo="archivo")
                 nombre_apoyo = guardar_archivo(archivo, extension)
             cur.execute(
-                "INSERT INTO tareas (id_tarea, id_materia, titulo, descripcion, fecha_limite, archivo_apoyo, creada_por, tipo) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                (id_tarea, id_materia, titulo, descripcion, fecha_limite_dt, nombre_apoyo, sesion["id_persona"], tipo),
+                "INSERT INTO tareas (id_tarea, id_materia, titulo, descripcion, fecha_limite, archivo_apoyo, creada_por, tipo, momento) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (id_tarea, id_materia, titulo, descripcion, fecha_limite_dt, nombre_apoyo, sesion["id_persona"], tipo, momento),
             )
             cur.execute(
-                "SELECT id_tarea, id_materia, titulo, descripcion, fecha_limite, archivo_apoyo, creada_por, creada_en, tipo "
+                "SELECT id_tarea, id_materia, titulo, descripcion, fecha_limite, archivo_apoyo, creada_por, creada_en, tipo, momento "
                 "FROM tareas WHERE id_tarea = %s",
                 (id_tarea,),
             )
@@ -208,6 +229,7 @@ def crear_tarea(
             "creada_por": fila[6],
             "creada_en": fila[7],
             "tipo": fila[8],
+            "momento": fila[9],
         }
     finally:
         conn.close()
@@ -225,7 +247,7 @@ def listar_tareas(id_materia: str | None = None, sesion: dict = Depends(autentic
                 if id_materia:
                     cur.execute(
                         "SELECT t.id_tarea, t.id_materia, t.titulo, t.descripcion, t.fecha_limite, "
-                        "t.archivo_apoyo, t.creada_en, t.tipo, mat.nombre_curso "
+                        "t.archivo_apoyo, t.creada_en, t.tipo, t.momento, mat.nombre_curso "
                         "FROM tareas t JOIN materias mat ON mat.id_materia = t.id_materia "
                         "WHERE t.id_materia = %s ORDER BY t.creada_en DESC, t.id_tarea",
                         (id_materia,),
@@ -233,7 +255,7 @@ def listar_tareas(id_materia: str | None = None, sesion: dict = Depends(autentic
                 else:
                     cur.execute(
                         "SELECT t.id_tarea, t.id_materia, t.titulo, t.descripcion, t.fecha_limite, "
-                        "t.archivo_apoyo, t.creada_en, t.tipo, mat.nombre_curso "
+                        "t.archivo_apoyo, t.creada_en, t.tipo, t.momento, mat.nombre_curso "
                         "FROM tareas t JOIN materias mat ON mat.id_materia = t.id_materia "
                         "ORDER BY t.creada_en DESC, t.id_tarea"
                     )
@@ -241,7 +263,7 @@ def listar_tareas(id_materia: str | None = None, sesion: dict = Depends(autentic
                 if id_materia:
                     cur.execute(
                         "SELECT t.id_tarea, t.id_materia, t.titulo, t.descripcion, t.fecha_limite, "
-                        "t.archivo_apoyo, t.creada_en, t.tipo, mat.nombre_curso "
+                        "t.archivo_apoyo, t.creada_en, t.tipo, t.momento, mat.nombre_curso "
                         "FROM tareas t JOIN materias mat ON mat.id_materia = t.id_materia "
                         "WHERE mat.id_profesor = %s AND t.id_materia = %s ORDER BY t.creada_en DESC, t.id_tarea",
                         (sesion["id_persona"], id_materia),
@@ -249,7 +271,7 @@ def listar_tareas(id_materia: str | None = None, sesion: dict = Depends(autentic
                 else:
                     cur.execute(
                         "SELECT t.id_tarea, t.id_materia, t.titulo, t.descripcion, t.fecha_limite, "
-                        "t.archivo_apoyo, t.creada_en, t.tipo, mat.nombre_curso "
+                        "t.archivo_apoyo, t.creada_en, t.tipo, t.momento, mat.nombre_curso "
                         "FROM tareas t JOIN materias mat ON mat.id_materia = t.id_materia "
                         "WHERE mat.id_profesor = %s ORDER BY t.creada_en DESC, t.id_tarea",
                         (sesion["id_persona"],),
@@ -258,7 +280,7 @@ def listar_tareas(id_materia: str | None = None, sesion: dict = Depends(autentic
                 if id_materia:
                     cur.execute(
                         "SELECT t.id_tarea, t.id_materia, t.titulo, t.descripcion, t.fecha_limite, "
-                        "t.archivo_apoyo, t.creada_en, t.tipo, mat.nombre_curso "
+                        "t.archivo_apoyo, t.creada_en, t.tipo, t.momento, mat.nombre_curso "
                         "FROM tareas t JOIN materias mat ON mat.id_materia = t.id_materia "
                         "WHERE t.id_materia IN ("
                         "SELECT m.id_materia FROM matriculas m JOIN periodos p ON p.periodo = m.periodo "
@@ -270,7 +292,7 @@ def listar_tareas(id_materia: str | None = None, sesion: dict = Depends(autentic
                 else:
                     cur.execute(
                         "SELECT t.id_tarea, t.id_materia, t.titulo, t.descripcion, t.fecha_limite, "
-                        "t.archivo_apoyo, t.creada_en, t.tipo, mat.nombre_curso "
+                        "t.archivo_apoyo, t.creada_en, t.tipo, t.momento, mat.nombre_curso "
                         "FROM tareas t JOIN materias mat ON mat.id_materia = t.id_materia "
                         "WHERE t.id_materia IN ("
                         "SELECT m.id_materia FROM matriculas m JOIN periodos p ON p.periodo = m.periodo "
@@ -287,7 +309,7 @@ def listar_tareas(id_materia: str | None = None, sesion: dict = Depends(autentic
             filas = cur.fetchall()
             ahora = datetime.now()
             tareas = []
-            for id_tarea, id_m, titulo, descripcion, fecha_limite, apoyo, creada_en, tipo, nombre_materia in filas:
+            for id_tarea, id_m, titulo, descripcion, fecha_limite, apoyo, creada_en, tipo, momento, nombre_materia in filas:
                 tarea = {
                     "id_tarea": id_tarea,
                     "id_materia": id_m,
@@ -298,6 +320,7 @@ def listar_tareas(id_materia: str | None = None, sesion: dict = Depends(autentic
                     "tiene_apoyo": apoyo is not None,
                     "creada_en": creada_en,
                     "tipo": tipo,
+                    "momento": momento,
                 }
                 if sesion["rol"] == ROL_ESTUDIANTE:
                     # La entrega más reciente del estudiante cuenta para el estado

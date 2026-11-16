@@ -6,13 +6,15 @@
 import uuid
 
 import psycopg2
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
 
 try:
+    from app.calculo_notas import calcular_notas_por_momento, sugerencias_por_materia
     from app.database import obtener_conexion
     from app.seguridad_api import ROL_ADMIN, ROL_ESTUDIANTE, ROL_PROFESOR, autenticar, require_admin
 except ImportError:
+    from calculo_notas import calcular_notas_por_momento, sugerencias_por_materia
     from database import obtener_conexion
     from seguridad_api import ROL_ADMIN, ROL_ESTUDIANTE, ROL_PROFESOR, autenticar, require_admin
 
@@ -93,10 +95,29 @@ def listar_notas(sesion: dict = Depends(autenticar)):
                     "nota3": float(nota3) if nota3 is not None else None,
                     "definitiva": float(definitiva) if definitiva is not None else None,
                     "estado": estado,
+                    "calculada": False,
                 }
                 if es_estudiante:
                     fila["actividades"] = actividades_por_materia.get(id_materia, [])
                 respuesta.append(fila)
+            if es_estudiante:
+                # Matrículas sin notas registradas a mano: N1/N2/N3 calculados desde
+                # las tareas con momento (V6); la definitiva es el promedio de los
+                # momentos con calificación y "Pendiente" si no hay ninguna.
+                calculos = calcular_notas_por_momento(cur, sesion["id_persona"])
+                for id_matricula, calculo in calculos.items():
+                    respuesta.append({
+                        "id_nota": None,
+                        "id_matricula": id_matricula,
+                        "id_materia": calculo["id_materia"],
+                        "nota1": calculo["nota1"],
+                        "nota2": calculo["nota2"],
+                        "nota3": calculo["nota3"],
+                        "definitiva": calculo["definitiva"],
+                        "estado": calculo["estado"],
+                        "calculada": True,
+                        "actividades": actividades_por_materia.get(calculo["id_materia"], []),
+                    })
             return respuesta
     finally:
         conn.close()
@@ -193,5 +214,60 @@ def crear_nota(nota: NotaCreate, sesion: dict = Depends(autenticar)):
             "definitiva": float(fila_creada[6]) if fila_creada[6] is not None else None,
             "estado": fila_creada[7],
         }
+    finally:
+        conn.close()
+
+
+@router.get("/sugerencias/{id_materia}", status_code=status.HTTP_200_OK)
+def sugerencias_momento(id_materia: str = Path(..., min_length=1), sesion: dict = Depends(autenticar)):
+    """Notas N1/N2/N3 calculadas desde las tareas con momento de una materia.
+
+    Sugerencia de solo lectura para el profesor de la materia (el admin también
+    puede consultarla): no cambia lo que el profesor escriba. Un momento sin
+    calificaciones llega NULL, no 0.
+    """
+    id_materia = id_materia.strip()
+    if sesion["rol"] == ROL_ESTUDIANTE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Las sugerencias de notas solo las consulta el profesor de la materia",
+        )
+    conn = obtener_conexion()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id_profesor FROM materias WHERE id_materia = %s",
+                (id_materia,),
+            )
+            fila_materia = cur.fetchone()
+            if fila_materia is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No existe la materia con ID '{id_materia}'",
+                )
+            if sesion["rol"] == ROL_PROFESOR and fila_materia[0] != sesion["id_persona"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"La materia '{id_materia}' no es tuya; solo puedes consultar tus materias",
+                )
+            calculos = sugerencias_por_materia(cur, id_materia)
+            respuesta = []
+            for cedula in sorted(calculos):
+                cur.execute(
+                    "SELECT nombre, apellidos FROM estudiantes WHERE id_estudiante = %s",
+                    (cedula,),
+                )
+                fila_estudiante = cur.fetchone()
+                valores = calculos[cedula]
+                respuesta.append({
+                    "cedula": cedula,
+                    "nombre": f"{fila_estudiante[0]} {fila_estudiante[1]}" if fila_estudiante else None,
+                    "nota1": valores["nota1"],
+                    "nota2": valores["nota2"],
+                    "nota3": valores["nota3"],
+                    "definitiva": valores["definitiva"],
+                    "estado": valores["estado"],
+                })
+            return respuesta
     finally:
         conn.close()
