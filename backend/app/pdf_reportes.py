@@ -22,8 +22,10 @@ from reportlab.platypus import (
 )
 
 try:
+    from app.calculo_notas import calcular_notas_por_momento
     from app.database import obtener_conexion
 except ImportError:
+    from calculo_notas import calcular_notas_por_momento
     from database import obtener_conexion
 
 # ====== Paleta compartida por los dos documentos ======
@@ -139,18 +141,28 @@ def generar_pdf_notas(cedula):
     if not estudiante:
         return False, "El estudiante no existe."
 
-    # Una sola consulta: materias matriculadas + sus notas (si ya existen)
-    filas = _consulta(
-        """
-        SELECT mat.nombre_curso, n.nota1, n.nota2, n.nota3, n.definitiva, n.estado
-        FROM matriculas m
-        JOIN materias mat ON mat.id_materia = m.id_materia
-        LEFT JOIN notas n ON n.id_matricula = m.id_matricula
-        WHERE m.cedula = %s
-        ORDER BY mat.nombre_curso
-        """,
-        (cedula,),
-    )
+    # Una sola consulta: materias matriculadas + sus notas a mano (si ya existen)
+    conn = obtener_conexion()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT m.id_matricula, mat.nombre_curso, n.id_nota, n.nota1, n.nota2,
+                       n.nota3, n.definitiva, n.estado
+                FROM matriculas m
+                JOIN materias mat ON mat.id_materia = m.id_materia
+                LEFT JOIN notas n ON n.id_matricula = m.id_matricula
+                WHERE m.cedula = %s
+                ORDER BY mat.nombre_curso
+                """,
+                (cedula,),
+            )
+            filas = cur.fetchall()
+            # Notas calculadas desde las tareas con momento, solo para las
+            # matrículas sin notas a mano (esas tienen prioridad y no se tocan)
+            calculos = calcular_notas_por_momento(cur, cedula)
+    finally:
+        conn.close()
 
     # Calificaciones de tareas: la entrega más reciente calificada de cada actividad
     actividades = _consulta(
@@ -170,15 +182,32 @@ def generar_pdf_notas(cedula):
     )
 
     datos_tabla = [["Materia", "N1", "N2", "N3", "Def", "Estado"]]
-    for nombre_materia, n1, n2, n3, definitiva, estado in filas:
-        if n1 is None:  # el profe todavía no calificó
+    hay_calculadas = False
+    for id_matricula, nombre_materia, id_nota, n1, n2, n3, definitiva, estado in filas:
+        if id_nota is not None:  # notas registradas a mano por el profesor: prioridad
+            if n1 is None:
+                datos_tabla.append([nombre_materia, "-", "-", "-", "-", "Sin notas"])
+            else:
+                datos_tabla.append([
+                    nombre_materia,
+                    f"{n1:.2f}", f"{n2:.2f}", f"{n3:.2f}",
+                    f"{definitiva:.2f}", estado,
+                ])
+            continue
+        # Matrícula sin notas a mano: N1/N2/N3 calculados por momento (V6)
+        calculo = calculos.get(id_matricula)
+        if calculo is None:
             datos_tabla.append([nombre_materia, "-", "-", "-", "-", "Sin notas"])
-        else:
-            datos_tabla.append([
-                nombre_materia,
-                f"{n1:.2f}", f"{n2:.2f}", f"{n3:.2f}",
-                f"{definitiva:.2f}", estado,
-            ])
+            continue
+        hay_calculadas = True
+        datos_tabla.append([
+            nombre_materia,
+            f"{calculo['nota1']:.2f}" if calculo["nota1"] is not None else "-",
+            f"{calculo['nota2']:.2f}" if calculo["nota2"] is not None else "-",
+            f"{calculo['nota3']:.2f}" if calculo["nota3"] is not None else "-",
+            f"{calculo['definitiva']:.2f}" if calculo["definitiva"] is not None else "-",
+            calculo["estado"],
+        ])
 
     tabla = Table(datos_tabla, colWidths=[5*cm, 1.5*cm, 1.5*cm, 1.5*cm, 2*cm, 3*cm])
     tabla.setStyle(_estilo_tabla(AZUL, [
@@ -193,6 +222,13 @@ def generar_pdf_notas(cedula):
     )
     contenido.append(Paragraph("Notas por materia", estilos["seccion"]))
     contenido.append(tabla)
+    if hay_calculadas:
+        contenido.append(Paragraph(
+            "Para las materias sin notas registradas a mano, N1, N2 y N3 son el promedio de las "
+            "calificaciones de tareas de cada momento (1, 2 o 3) y la definitiva es el promedio de "
+            "los momentos con calificación; si solo hay uno, la definitiva es ese valor.",
+            estilos["nota"],
+        ))
 
     if actividades:
         datos_actividades = [["Materia", "Actividad", "Tipo", "Nota", "Calificada el"]]
