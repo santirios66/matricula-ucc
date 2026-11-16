@@ -328,8 +328,19 @@ function vistaResumen(){
    if(current==='resumen'&&SESION&&SESION.rol==='Administrador'){pinta(calcularPanel(matriculas),tareas);animaLlegada($('#view'));}
   })();
  } else if(SESION.rol==='Estudiante'){
-  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Cédula ${esc(SESION.id_persona)} · rol ${esc(SESION.rol)}</p></div></div><div class="help"><article><h3>Matricular</h3><p>Arma tu carrito con las materias de tu facultad. Total entre 6 y 19 créditos.</p><button data-page="matricular">Ir a matricular →</button></article><article><h3>Mis notas</h3><p>Consulta tus calificaciones.</p><button data-page="misnotas">Ver notas →</button></article><article><h3>Mis documentos</h3><p>Recibo de matrícula y reporte de notas en PDF.</p><button data-page="docs">Descargar →</button></article></div></section>`;
+  // Tarjeta "Mis tareas": cantidad de pendientes y fecha límite más cercana (se consulta aparte)
+  $('#view').innerHTML=`<section class="stats stats-estudiante" id="stats-tareas" aria-label="Mis tareas"><div class="stat"><span>❑ &nbsp; Mis tareas</span><strong>…</strong><span>Consultando tus tareas…</span></div></section><section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Cédula ${esc(SESION.id_persona)} · rol ${esc(SESION.rol)}</p></div></div><div class="help"><article><h3>Matricular</h3><p>Arma tu carrito con las materias de tu facultad. Total entre 6 y 19 créditos.</p><button data-page="matricular">Ir a matricular →</button></article><article><h3>Mis tareas</h3><p>Revisa tus pendientes y sube tus entregas antes de la fecha límite.</p><button data-page="mistareas">Ver tareas →</button></article><article><h3>Mis notas</h3><p>Consulta tus calificaciones por materia y por actividad.</p><button data-page="misnotas">Ver notas →</button></article><article><h3>Mis documentos</h3><p>Recibo de matrícula y reporte de notas en PDF.</p><button data-page="docs">Descargar →</button></article></div></section>`;
   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
+  apiAuth('/tareas/').then(tareas=>{
+   if(current!=='resumen'||!SESION||SESION.rol!=='Estudiante')return;
+   const zona=$('#stats-tareas');if(!zona)return;
+   zona.innerHTML=tarjetasTareasEst(tareas);
+   zona.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
+   animaLlegada(zona);
+  }).catch(()=>{
+   const zona=$('#stats-tareas');
+   if(zona)zona.innerHTML=`<div class="stat"><span>❑ &nbsp; Mis tareas</span><strong>—</strong><span>No se pudieron consultar tus tareas</span></div>`;
+  });
  } else {
   $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Profesor · ID ${esc(SESION.id_persona)}</p></div></div><div class="help"><article><h3>Ingresar notas</h3><p>Elige una de tus materias y califica a sus estudiantes.</p><button data-page="ingresarnotas">Ingresar notas →</button></article><article><h3>Reportes</h3><p>PDF de notas de tus estudiantes.</p><button data-page="reportes">Ver reportes →</button></article></div></section>`;
   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
@@ -430,7 +441,13 @@ async function vistaMisNotas(){
   const conDefinitiva=notas.filter(n=>n.definitiva!=null);
   const promedio=conDefinitiva.length?(conDefinitiva.reduce((s,n)=>s+Number(n.definitiva),0)/conDefinitiva.length).toFixed(2):'—';
   const filas=notas.map(n=>`<tr><td><span class="id">${esc(n.id_nota)}</span></td><td>${esc(n.id_materia)}</td><td>${n.nota1??'—'}</td><td>${n.nota2??'—'}</td><td>${n.nota3??'—'}</td><td><b>${n.definitiva??'—'}</b></td><td>${esc(n.estado||'Sin notas')}</td></tr>`).join('');
-  $('#view').innerHTML=`${franja([{etiqueta:'Materias con nota',valor:notas.length},{etiqueta:'Promedio de definitivas',valor:promedio}])}<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>`;
+  // Actividades por materia: la API repite la lista en cada nota de la misma
+  // materia (una por matrícula), así que se muestra una sola vez por materia.
+  const porMateria={};
+  notas.forEach(n=>{if(Array.isArray(n.actividades)&&n.actividades.length&&!porMateria[n.id_materia])porMateria[n.id_materia]=n.actividades;});
+  const totalActividades=Object.values(porMateria).reduce((s,lista)=>s+lista.length,0);
+  const seccionActividades=totalActividades?`<section class="panel"><div class="panel-top"><div><h2>Calificaciones por actividad</h2><p>Talleres, quizzes, exámenes y trabajos que ya calificaron tus profesores</p></div></div><div class="lista-actividades">${Object.entries(porMateria).map(([materia,actividades])=>actividades.map(a=>`<article class="actividad-item"><div><strong>${esc(a.titulo)}</strong><span class="tarea-meta"><span class="chip">${esc(materia)}</span>${chipTipo(a.tipo)}<span class="chip">Calificada: ${esc(formatFecha(a.subida_en))}</span></span></div><span class="chip chip-calif">Nota: ${Number(a.calificacion).toFixed(1)}</span></article>`).join('')).join('')}</div></section>`:'';
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias con nota',valor:notas.length},{etiqueta:'Actividades calificadas',valor:totalActividades},{etiqueta:'Promedio de definitivas',valor:promedio}])}<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>${seccionActividades}`;
   animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus notas',mensajeRol(error));}
 }
@@ -515,6 +532,26 @@ function formatFecha(valor){
 }
 const plazoVigente = fechaLimite => !!fechaLimite && new Date(fechaLimite) >= new Date();
 
+// ====== Tipos de actividad (V5) y calificaciones ======
+// 'examen' y 'quiz' se califican directamente: el archivo de la entrega es opcional
+const TIPOS_TAREA = [['taller','Taller'],['quiz','Quiz'],['examen','Examen'],['trabajo','Trabajo']];
+const TIPOS_SIN_ARCHIVO = ['examen','quiz'];
+const nombreTipo = tipo => (TIPOS_TAREA.find(([k])=>k===tipo)||[tipo||'taller','Taller'])[1];
+const chipTipo = tipo => `<span class="chip chip-tipo chip-tipo-${esc(tipo||'taller')}">${esc(nombreTipo(tipo))}</span>`;
+const chipNota = calificacion => calificacion==null?'':`<span class="chip chip-calif">Nota: ${Number(calificacion).toFixed(1)}</span>`;
+function validaCalificacion(valor){
+  if(valor===''||valor==null) return 'Escribe la calificación (0.0 a 5.0).';
+  const nota=Number(valor);
+  if(Number.isNaN(nota)||nota<0||nota>5) return 'La calificación debe estar entre 0.0 y 5.0.';
+  return '';
+}
+function tarjetasTareasEst(tareas){
+  // Tarjeta "Mis tareas" del Resumen: pendientes + fecha límite más cercana, o "Estás al día"
+  const pendientes=(tareas||[]).filter(t=>t.estado_entrega==='Pendiente');
+  const masCercana=pendientes.map(t=>t.fecha_limite).filter(Boolean).sort()[0];
+  return `<button class="stat" data-page="mistareas"><span>❑ &nbsp; Mis tareas</span><strong>${pendientes.length?`${pendientes.length} pendiente${pendientes.length===1?'':'s'}`:'Estás al día ✓'}</strong><span>${pendientes.length?`Próxima fecha límite: ${esc(formatFecha(masCercana))}`:'No tienes tareas pendientes'}</span></button>`;
+}
+
 // ====== Profesor: Tareas (crear + revisar entregas) ======
 async function vistaTareas(){
  $('#refresh').hidden=false;
@@ -526,13 +563,22 @@ async function vistaTareas(){
   if(!mias.length){$('#view').innerHTML=vacio('❑','No tienes materias asignadas','Cuando te asignen materias podrás crear tareas aquí.');return;}
   const tareas=await apiAuth('/tareas/');
   const opciones=mias.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
-  $('#view').innerHTML=`${franja([{etiqueta:'Tareas creadas',valor:tareas.length},{etiqueta:'Materias asignadas',valor:mias.length}])}<section class="panel"><div class="panel-top"><div><h2>Nueva tarea</h2><p>Los campos con * son obligatorios. Archivo de apoyo opcional: PDF, MP4 o WebM, máximo 20 MB</p></div></div><form id="form-tarea"><div class="fields"><div><label for="t-materia">Materia *</label><select id="t-materia" required>${opciones}</select></div><div><label for="t-limite">Fecha y hora límite *</label><input id="t-limite" type="datetime-local" required></div><div class="campo-ancho"><label for="t-titulo">Título *</label><input id="t-titulo" type="text" maxlength="120" required placeholder="Taller 1 - Programación en Java"></div><div class="campo-ancho"><label for="t-archivo">Archivo de apoyo (opcional)</label><input id="t-archivo" type="file" accept=".pdf,.mp4,.webm"><p class="error-archivo" id="t-archivo-error" role="alert"></p></div><div class="campo-ancho"><label for="t-desc">Descripción *</label><textarea id="t-desc" rows="3" required placeholder="Instrucciones, entregables y formato esperado"></textarea></div></div><p id="t-error" role="alert"></p><div class="form-actions"><button type="submit" id="t-crear">Crear tarea</button></div></form></section><section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Pulsa "Ver entregas" para ver quién entregó y quién no</p></div></div><div id="lista-tareas" class="lista-tareas"></div></section>`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Tareas creadas',valor:tareas.length},{etiqueta:'Materias asignadas',valor:mias.length}])}<section class="panel"><div class="panel-top"><div><h2>Nueva tarea</h2><p>El tipo y los campos con * son obligatorios. Archivo de apoyo opcional: PDF, MP4 o WebM, máximo 20 MB</p></div></div><form id="form-tarea"><div class="fields"><div><label for="t-materia">Materia *</label><select id="t-materia" required>${opciones}</select></div><div><label for="t-tipo">Tipo de actividad *</label><select id="t-tipo" required>${TIPOS_TAREA.map(([valor,texto])=>`<option value="${valor}">${texto}</option>`).join('')}</select></div><div><label for="t-limite">Fecha y hora límite *</label><input id="t-limite" type="datetime-local" required></div><div class="campo-ancho"><label for="t-titulo">Título *</label><input id="t-titulo" type="text" maxlength="120" required placeholder="Taller 1 - Programación en Java"></div><div class="campo-ancho" id="t-archivo-campo"><label for="t-archivo">Archivo de apoyo (opcional)</label><input id="t-archivo" type="file" accept=".pdf,.mp4,.webm"><p class="error-archivo" id="t-archivo-error" role="alert"></p></div><div class="campo-ancho" id="t-sin-archivo-aviso" hidden><p class="ayuda-tipo">Esta actividad se califica directamente</p></div><div class="campo-ancho"><label for="t-desc">Descripción *</label><textarea id="t-desc" rows="3" required placeholder="Instrucciones, entregables y formato esperado"></textarea></div></div><p id="t-error" role="alert"></p><div class="form-actions"><button type="submit" id="t-crear">Crear tarea</button></div></form></section><section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Pulsa "Ver entregas" para ver quién entregó y quién no</p></div></div><div id="lista-tareas" class="lista-tareas"></div></section>`;
   animaLlegada($('#view'));
   $('#t-archivo').onchange=e=>{const msg=validaArchivo(e.target.files[0]);$('#t-archivo-error').textContent=msg;if(msg)e.target.value='';};
+  // En examen y quiz la actividad se califica directamente: se oculta el archivo de apoyo
+  const aplicarTipo=()=>{
+   const sinArchivo=TIPOS_SIN_ARCHIVO.includes($('#t-tipo').value);
+   $('#t-archivo-campo').hidden=sinArchivo;
+   $('#t-sin-archivo-aviso').hidden=!sinArchivo;
+   if(sinArchivo){$('#t-archivo').value='';$('#t-archivo-error').textContent='';}
+  };
+  $('#t-tipo').onchange=aplicarTipo;aplicarTipo();
   $('#form-tarea').onsubmit=async e=>{
    e.preventDefault();
    $('#t-error').textContent='';
-   const archivo=$('#t-archivo').files[0];
+   const tipo=$('#t-tipo').value,sinArchivo=TIPOS_SIN_ARCHIVO.includes(tipo);
+   const archivo=sinArchivo?null:$('#t-archivo').files[0];
    if(archivo){const msgArchivo=validaArchivo(archivo);if(msgArchivo){$('#t-archivo-error').textContent=msgArchivo;return;}}
    const btn=$('#t-crear');btn.disabled=true;btn.textContent='Creando tarea…';
    try{
@@ -541,6 +587,7 @@ async function vistaTareas(){
     fd.append('titulo',$('#t-titulo').value.trim());
     fd.append('descripcion',$('#t-desc').value.trim());
     fd.append('fecha_limite',$('#t-limite').value);
+    fd.append('tipo',tipo);
     if(archivo)fd.append('archivo',archivo);
     const creada=await apiAuth('/tareas/',{method:'POST',body:fd});
     notice(`Tarea creada: ${creada.titulo} (${creada.id_tarea}).`,true);
@@ -550,26 +597,52 @@ async function vistaTareas(){
   const pintarLista=()=>{
    const zona=$('#lista-tareas');
    if(!tareas.length){zona.innerHTML=vacio('❑','Aún no has creado tareas','Crea la primera con el formulario "Nueva tarea" de arriba.');return;}
-   zona.innerHTML=tareas.map(t=>`<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta"><span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?'<span class="chip">⇩ Con archivo de apoyo</span>':''}</span></div><div class="tarea-lado"><span class="chip chip-entregas">${t.entregas_recibidas??0} de ${t.matriculados??0} entregaron</span><button class="secondary ver-entregas" data-id="${esc(t.id_tarea)}">Ver entregas ▾</button></div></div><div class="tarea-detail" id="detalle-${esc(t.id_tarea)}" hidden></div></article>`).join('');
-   zona.querySelectorAll('.ver-entregas').forEach(b=>b.onclick=()=>verEntregas(b.dataset.id,b));
+   zona.innerHTML=tareas.map(t=>`<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta">${chipTipo(t.tipo)}<span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?'<span class="chip">⇩ Con archivo de apoyo</span>':''}</span></div><div class="tarea-lado"><span class="chip chip-entregas">${t.entregas_recibidas??0} de ${t.matriculados??0} entregaron</span><button class="secondary ver-entregas" data-id="${esc(t.id_tarea)}" data-tipo="${esc(t.tipo||'taller')}">Ver entregas ▾</button></div></div><div class="tarea-detail" id="detalle-${esc(t.id_tarea)}" hidden></div></article>`).join('');
+   zona.querySelectorAll('.ver-entregas').forEach(b=>b.onclick=()=>verEntregas(b.dataset.id,b,b.dataset.tipo||'taller'));
   };
   pintarLista();
   animaLlegada($('#lista-tareas'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus tareas',mensajeRol(error));}
 }
-async function verEntregas(idTarea, boton){
+async function verEntregas(idTarea, boton, tipo='taller'){
  const caja=$(`#detalle-${idTarea}`);
  if(!caja){return;}
  if(!caja.hidden){caja.hidden=true;boton.textContent='Ver entregas ▾';return;}
  boton.disabled=true;boton.textContent='Cargando entregas…';
- try{
+ const directo=TIPOS_SIN_ARCHIVO.includes(tipo);
+ // Pinta la lista de entregas desde la API; se reutiliza para refrescar tras guardar una calificación
+ const pinta=async()=>{
   const res=await apiAuth(`/tareas/${idTarea}/entregas`);
-  const entregas=res.entregas||[], sin=res.no_entregaron||[];
-  const filas=entregas.map(e=>`<tr><td><span class="id">${esc(e.cedula)}</span></td><td>${esc(e.nombre)}</td><td>${esc(formatFecha(e.subida_en))}</td><td>${esc(e.comentario||'—')}</td><td><button class="secondary descargar-entrega" data-tarea="${esc(idTarea)}" data-id="${esc(e.id_entrega)}" data-cedula="${esc(e.cedula)}">Descargar ⇩</button></td></tr>`).join('');
-  caja.innerHTML=`<h3>Entregas recibidas (${entregas.length})</h3>${entregas.length?`<div class="table-wrap"><table><thead><tr><th>Cédula</th><th>Estudiante</th><th>Subida</th><th>Comentario</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>`:vacio('⇧','Sin entregas todavía','Cuando los estudiantes suban su archivo, aparecerá aquí con botón de descarga.')}<h3>No han entregado (${sin.length})</h3>${sin.length?`<ul class="lista-no-entrega">${sin.map(e=>`<li><span class="id">${esc(e.cedula)}</span> ${esc(e.nombre)}</li>`).join('')}</ul>`:vacio('✓','Todos entregaron','Los estudiantes matriculados de esta materia ya subieron su entrega.')}`;
+  const entregas=res.entregas||[], sin=res.no_entregaron||[], sinCal=res.sin_calificacion||[];
+  const filas=entregas.map(e=>`<tr><td><span class="id">${esc(e.cedula)}</span></td><td>${esc(e.nombre)}</td><td>${esc(formatFecha(e.subida_en))}</td><td>${esc(e.comentario||'—')}</td><td>${e.con_archivo?`<button class="secondary descargar-entrega" data-tarea="${esc(idTarea)}" data-id="${esc(e.id_entrega)}" data-cedula="${esc(e.cedula)}">Descargar ⇩</button>`:'<span class="chip chip-sin-archivo">Sin archivo · calificada directamente</span>'}</td><td class="celda-calif"><input type="number" class="input-calif" min="0" max="5" step="0.1" value="${e.calificacion??''}" placeholder="—" aria-label="Calificación de ${esc(e.cedula)}"><button class="guardar-calif" data-id="${esc(e.id_entrega)}" data-cedula="${esc(e.cedula)}">Guardar</button></td></tr>`).join('');
+  const filasSin=sin.map(e=>`<li><span class="id">${esc(e.cedula)}</span> ${esc(e.nombre)}${directo?`<span class="calif-directa"><input type="number" class="input-calif" min="0" max="5" step="0.1" placeholder="0.0 – 5.0" aria-label="Calificación directa para ${esc(e.cedula)}"><button class="guardar-calif-directa" data-cedula="${esc(e.cedula)}">Calificar</button></span>`:''}</li>`).join('');
+  caja.innerHTML=`<h3>Entregas recibidas (${entregas.length})${sinCal.length?` <span class="chip chip-sin-calif">${sinCal.length} sin calificación</span>`:''}</h3>${entregas.length?`<div class="table-wrap"><table><thead><tr><th>Cédula</th><th>Estudiante</th><th>Subida</th><th>Comentario</th><th>Archivo</th><th>Calificación (0.0 a 5.0)</th></tr></thead><tbody>${filas}</tbody></table></div>`:vacio('⇧','Sin entregas todavía',directo?'Los estudiantes no suben archivo en esta actividad: registra su calificación en la lista de abajo.':'Cuando los estudiantes suban su archivo, aparecerá aquí con botón de descarga.')}<h3>No han entregado (${sin.length})</h3>${sin.length?`<ul class="lista-no-entrega">${filasSin}</ul>`:vacio('✓','Todos entregaron','Los estudiantes matriculados de esta materia ya subieron su entrega.')}`;
   caja.querySelectorAll('.descargar-entrega').forEach(b=>b.onclick=()=>descargarPDF(`/tareas/${b.dataset.tarea}/entregas/${b.dataset.id}/archivo`,`Entrega_${b.dataset.cedula}_${b.dataset.id}.pdf`));
-  caja.hidden=false;boton.textContent='Ocultar entregas ▴';
- }catch(error){caja.innerHTML=vacio('⚠','No se pudieron cargar las entregas',mensajeRol(error));caja.hidden=false;boton.textContent='Reintentar ▾';}
+  caja.querySelectorAll('.guardar-calif').forEach(b=>b.onclick=async()=>{
+   const input=b.closest('td').querySelector('.input-calif');
+   const msg=validaCalificacion(input.value);
+   if(msg){notice(msg);return;}
+   b.disabled=true;b.textContent='Guardando…';
+   try{
+    const res=await apiAuth(`/tareas/${idTarea}/entregas/${b.dataset.id}/calificacion`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({calificacion:Number(input.value)})});
+    notice(`Calificación guardada: ${res.calificacion} para ${b.dataset.cedula}.`,true);
+    await pinta();animaLlegada(caja);
+   }catch(error){notice(mensajeRol(error));b.disabled=false;b.textContent='Guardar';}
+  });
+  caja.querySelectorAll('.guardar-calif-directa').forEach(b=>b.onclick=async()=>{
+   const input=b.closest('li').querySelector('.input-calif');
+   const msg=validaCalificacion(input.value);
+   if(msg){notice(msg);return;}
+   b.disabled=true;b.textContent='Guardando…';
+   try{
+    const res=await apiAuth(`/tareas/${idTarea}/calificaciones`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:b.dataset.cedula,calificacion:Number(input.value)})});
+    notice(`Calificación registrada: ${res.calificacion} para ${b.dataset.cedula}.`,true);
+    await pinta();animaLlegada(caja);
+   }catch(error){notice(mensajeRol(error));b.disabled=false;b.textContent='Calificar';}
+  });
+ };
+ try{await pinta();animaLlegada(caja);caja.hidden=false;boton.textContent='Ocultar entregas ▴';}
+ catch(error){caja.innerHTML=vacio('⚠','No se pudieron cargar las entregas',mensajeRol(error));caja.hidden=false;boton.textContent='Reintentar ▾';}
  finally{boton.disabled=false;}
 }
 
@@ -582,13 +655,14 @@ async function vistaMisTareas(){
   const tareas=await apiAuth('/tareas/');
   const conteo={Entregado:0,Pendiente:0,'No entregó':0};
   tareas.forEach(t=>{if(t.estado_entrega in conteo)conteo[t.estado_entrega]++;});
-  $('#view').innerHTML=`${franja([{etiqueta:'Tareas',valor:tareas.length},{etiqueta:'Entregadas',valor:conteo.Entregado},{etiqueta:'Pendientes',valor:conteo.Pendiente},{etiqueta:'No entregó',valor:conteo['No entregó']}])}<section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Sube tu archivo antes de la fecha límite: PDF, MP4 o WebM, máximo 20 MB</p></div></div><div id="lista-mis-tareas" class="lista-tareas"></div></section>`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Tareas',valor:tareas.length},{etiqueta:'Entregadas',valor:conteo.Entregado},{etiqueta:'Pendientes',valor:conteo.Pendiente},{etiqueta:'No entregó',valor:conteo['No entregó']}])}<section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Sube tu archivo antes de la fecha límite: PDF, MP4 o WebM, máximo 20 MB. En exámenes y quizzes el archivo es opcional</p></div></div><div id="lista-mis-tareas" class="lista-tareas"></div></section>`;
   const zona=$('#lista-mis-tareas');
   if(!tareas.length){zona.innerHTML=vacio('❑','No hay tareas en tus materias','Cuando tus profesores publiquen tareas, aparecerán aquí con su fecha límite.');animaLlegada($('#view'));return;}
   zona.innerHTML=tareas.map(t=>{
    const vigente=plazoVigente(t.fecha_limite);
    const claseEstado=t.estado_entrega==='Entregado'?'estado-entregado':t.estado_entrega==='Pendiente'?'estado-pendiente':'estado-no-entrego';
-   return `<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta"><span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?`<button type="button" class="chip descarga-apoyo" data-id="${esc(t.id_tarea)}">⇩ Descargar apoyo</button>`:''}</span></div><div class="tarea-lado"><span class="chip ${claseEstado}">${esc(t.estado_entrega)}${t.estado_entrega==='Entregado'&&t.fecha_entrega?` · ${esc(formatFecha(t.fecha_entrega))}`:''}</span>${vigente?`<button type="button" class="subir-entrega" data-id="${esc(t.id_tarea)}">Subir entrega ⇧</button>`:''}</div></div>${vigente?`<form class="form-entrega" id="form-entrega-${esc(t.id_tarea)}" hidden><div class="fields"><div><label for="archivo-${esc(t.id_tarea)}">Tu archivo (PDF, MP4 o WebM, máx. 20 MB) *</label><input id="archivo-${esc(t.id_tarea)}" type="file" accept=".pdf,.mp4,.webm" required><p class="error-archivo" role="alert"></p></div><div><label for="comentario-${esc(t.id_tarea)}">Comentario para el profesor (opcional)</label><input id="comentario-${esc(t.id_tarea)}" type="text" maxlength="300" placeholder="Ej. Adjunto el taller con capturas"></div></div><div class="form-actions"><button type="submit">Enviar entrega</button></div></form>`:''}</article>`;
+   const sinArchivo=TIPOS_SIN_ARCHIVO.includes(t.tipo||'taller');
+   return `<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta">${chipTipo(t.tipo)}<span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?`<button type="button" class="chip descarga-apoyo" data-id="${esc(t.id_tarea)}">⇩ Descargar apoyo</button>`:''}</span></div><div class="tarea-lado"><span class="chip ${claseEstado}">${esc(t.estado_entrega)}${t.estado_entrega==='Entregado'&&t.fecha_entrega?` · ${esc(formatFecha(t.fecha_entrega))}`:''}</span>${chipNota(t.calificacion)}${vigente?`<button type="button" class="subir-entrega" data-id="${esc(t.id_tarea)}">Subir entrega ⇧</button>`:''}</div></div>${vigente?`<form class="form-entrega" id="form-entrega-${esc(t.id_tarea)}" data-tipo="${esc(t.tipo||'taller')}" hidden><div class="fields"><div><label for="archivo-${esc(t.id_tarea)}">Tu archivo (PDF, MP4 o WebM, máx. 20 MB)${sinArchivo?' (opcional)':' *'}</label><input id="archivo-${esc(t.id_tarea)}" type="file" accept=".pdf,.mp4,.webm" ${sinArchivo?'':'required'}>${sinArchivo?'<p class="ayuda-tipo">Esta actividad se califica directamente</p>':''}<p class="error-archivo" role="alert"></p></div><div><label for="comentario-${esc(t.id_tarea)}">Comentario para el profesor (opcional)</label><input id="comentario-${esc(t.id_tarea)}" type="text" maxlength="300" placeholder="Ej. Adjunto el taller con capturas"></div></div><div class="form-actions"><button type="submit">Enviar entrega</button></div></form>`:''}</article>`;
   }).join('');
   zona.querySelectorAll('.descarga-apoyo').forEach(b=>b.onclick=()=>descargarPDF(`/tareas/${b.dataset.id}/apoyo`,`Apoyo_${b.dataset.id}.pdf`));
   zona.querySelectorAll('.subir-entrega').forEach(b=>b.onclick=()=>{
@@ -599,23 +673,24 @@ async function vistaMisTareas(){
   });
   zona.querySelectorAll('.form-entrega').forEach(form=>{
    const id=form.id.replace('form-entrega-','');
+   const tipo=form.dataset.tipo||'taller', sinArchivo=TIPOS_SIN_ARCHIVO.includes(tipo);
    const input=$(`#archivo-${id}`), comentario=$(`#comentario-${id}`), err=form.querySelector('.error-archivo');
-   input.onchange=e=>{const msg=validaArchivo(e.target.files[0]);err.textContent=msg;if(msg)e.target.value='';};
+   input.onchange=e=>{if(!e.target.files[0]){err.textContent='';return;}const msg=validaArchivo(e.target.files[0]);err.textContent=msg;if(msg)e.target.value='';};
    form.onsubmit=async e=>{
     e.preventDefault();
     err.textContent='';
     const archivo=input.files[0];
-    const msg=validaArchivo(archivo);
-    if(msg){err.textContent=msg;return;}
+    if(archivo){const msg=validaArchivo(archivo);if(msg){err.textContent=msg;return;}}
+    else if(!sinArchivo){err.textContent=`El archivo es obligatorio para actividades de tipo ${nombreTipo(tipo).toLowerCase()}.`;return;}
     const btn=form.querySelector('button[type=submit]');
     btn.disabled=true;btn.textContent='Subiendo…';
     try{
      const fd=new FormData();
-     fd.append('archivo',archivo);
+     if(archivo)fd.append('archivo',archivo);
      const texto=(comentario.value||'').trim();
      if(texto)fd.append('comentario',texto);
      await apiAuth(`/tareas/${id}/entregas`,{method:'POST',body:fd});
-     notice('Entrega subida correctamente. Tu estado ahora es "Entregado".',true);
+     notice('Entrega registrada correctamente. Tu estado ahora es "Entregado".',true);
      await vistaMisTareas();
     }catch(error){notice(mensajeRol(error));btn.disabled=false;btn.textContent='Enviar entrega';}
    };

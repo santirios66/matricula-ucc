@@ -212,3 +212,36 @@ body.tema-oscuro .chip.estado-pendiente{background:#3b2f12;color:#ecc76d}
 body.tema-oscuro .chip.estado-no-entrego{background:#3b1219;color:#ff9299}
 body.tema-oscuro .chip.chip-entregas{background:#12414a;color:#7fd8cc}
 body.tema-oscuro button.chip{background:#1c3d52;border-color:#2a4a5e;color:#bfd0dc}
+
+/* ====== Tipos de actividad y calificaciones (V5) ====== */
+.chip-tipo-taller{background:#eef5f9;color:#22577a}
+.chip-tipo-quiz{background:#fdf4e0;color:#9a6b0a}
+.chip-tipo-examen{background:#fbe9e9;color:#b02a37}
+.chip-tipo-trabajo{background:#e4f5ea;color:#1f7a44}
+.chip-calif{background:#eaf5f3;color:#1f6b5e;font-weight:700}
+.chip-sin-archivo{background:#eef3f6;color:#4a6274}
+.chip-sin-calif{background:#fdf4e0;color:#9a6b0a}
+.ayuda-tipo{color:#1f6b5e;font-size:12.5px;font-weight:600;margin:6px 0 0}
+.input-calif{width:88px;padding:8px 10px;border:1px solid #cfdce4;border-radius:7px;background:white;color:#183448;font-size:13px}
+.celda-calif{white-space:nowrap}
+.celda-calif .guardar-calif{margin-left:6px;padding:8px 12px;font-size:13px}
+.calif-directa{display:inline-flex;gap:8px;align-items:center;margin-left:8px}
+.calif-directa .guardar-calif-directa{padding:8px 12px;font-size:13px}
+.lista-no-entrega li{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lista-actividades{display:grid;gap:10px;padding:0 26px 26px}
+.actividad-item{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:14px 18px;background:white}
+.actividad-item>div{display:flex;flex-direction:column;gap:8px;min-width:0}
+.actividad-item strong{font-size:14.5px;color:#182f43}
+.stats-estudiante{grid-template-columns:minmax(0,340px)}
+
+body.tema-oscuro .chip-tipo-taller{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .chip-tipo-quiz{background:#3b2f12;color:#ecc76d}
+body.tema-oscuro .chip-tipo-examen{background:#3b1219;color:#ff9299}
+body.tema-oscuro .chip-tipo-trabajo{background:#12352a;color:#8fd8b4}
+body.tema-oscuro .chip-calif{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .chip-sin-archivo{background:#1c3d52;color:#a9c2cf}
+body.tema-oscuro .chip-sin-calif{background:#3b2f12;color:#ecc76d}
+body.tema-oscuro .ayuda-tipo{color:#7fd8cc}
+body.tema-oscuro .input-calif{background:#0f2a3b;border-color:#2a4a5e;color:#d9e6ee}
+body.tema-oscuro .actividad-item{background:#133145;border-color:#28475a}
+body.tema-oscuro .actividad-item strong{color:#e6f1f7}
