@@ -65,3 +65,68 @@ Sobre el portal en `http://localhost:5173`, con sesión real de cada rol:
 - Aplicar `backend/migrations/V4__tareas.sql` **después** de V1, V2 y V3 con pgAdmin → Query Tool, en orden.
 - La cuenta del segundo profesor (PR02) no existía en la BD demo y se creó para poder ejecutar PR02/PR04 (rol Profesor, `id_persona=PR02`, misma política de claves del proyecto; la clave no se publica).
 - Las tareas y entregas de la corrida final quedaron en la BD demo para poder navegar el portal; los archivos subidos viven en `backend/archivos/`, que está excluido del repositorio en `.gitignore`.
+
+---
+
+# Pruebas de calificación (ronda 2: tipos de actividad y calificaciones)
+
+Extensión sobre `feature/calificacion` (base: `main` con la ronda 1 fusionada). Cambios cubiertos:
+
+- **Migración `backend/migrations/V5__tipo_tarea.sql`** (nueva; no toca V1–V4): `tareas.tipo VARCHAR(20) NOT NULL DEFAULT 'taller'` con CHECK `taller/quiz/examen/trabajo`, y `entregas.calificacion NUMERIC(3,2)` nullable con CHECK entre 0.0 y 5.0. Las tareas previas quedan como `taller`.
+- **`PUT /tareas/{id_tarea}/entregas/{id_entrega}/calificacion`**: solo el profesor dueño (403 en otro caso); 422 si la nota queda fuera de 0.0–5.0.
+- **`POST /tareas/{id_tarea}/calificaciones`**: calificación directa con `cedula` + `calificacion`, solo para tareas de tipo `examen` o `quiz` (crea la entrega con `archivo=''` y la nota; si ya había entrega, actualiza su calificación).
+- **`GET /tareas/{id_tarea}/entregas`** ahora incluye `calificacion` y `con_archivo` por entrega, y la lista `sin_calificacion`.
+- **`GET /notas/`** del estudiante incluye `actividades` por materia (título, tipo, calificación, `subida_en`).
+- **Frontend**: selector de tipo (examen/quiz ocultan el archivo de apoyo y muestran "Esta actividad se califica directamente"), calificación editable en el detalle del profesor, calificación directa en la lista de no entregados (examen/quiz), chip de tipo y de nota en Mis tareas, tarjeta "Mis tareas" en el Resumen del estudiante y actividades separadas por tipo en Mis notas.
+
+## Pruebas obligatorias (resultados reales de la corrida final)
+
+Suite contra `http://localhost:8000` con las cabeceras `X-Usuario`/`X-Clave` (credenciales demo del proyecto; las claves no se publican en el repositorio).
+
+| # | Prueba | Petición | Resultado real | Estado |
+|---|--------|----------|----------------|--------|
+| C1a | Profesor califica una entrega de taller con 4.5 | `PUT /tareas/{taller}/entregas/{id}/calificacion` (profesor dueño) | **200** con `calificacion=4.5` | ✅ PASÓ |
+| C1b | El estudiante ve la calificación del taller en Mis notas | `GET /notas/` (1001) | **200**; en `actividades` aparece `{titulo: "Taller 1 - Programación en Java", tipo: "taller", calificacion: 4.5}` | ✅ PASÓ |
+| C2 | Profesor califica fuera de rango (6.0) | mismo PUT con `{"calificacion": 6.0}` | **422** `La calificación 6.0 está fuera del rango permitido (0.0 a 5.0)` | ✅ PASÓ |
+| C3a | Profesor de otra materia intenta calificar | mismo PUT con el profesor de M02 | **403** `Solo el profesor de la materia puede calificar las entregas de esta tarea` | ✅ PASÓ |
+| C3b/c | Variante admin y estudiante | mismo PUT con admin y con 1001 | **403** en ambos (la regla literal es "solo el profesor dueño") | ✅ PASÓ |
+| C4 | Profesor crea un examen sin archivo | `POST /tareas/` con `tipo=examen` y sin archivo | **201**, `tipo=examen`, `tiene_apoyo=false` | ✅ PASÓ |
+| C5a | Calificación directa del examen (4.8) | `POST /tareas/{examen}/calificaciones` `{"cedula":"1001","calificacion":4.8}` | **201** con `calificacion=4.8` y `con_archivo=false` | ✅ PASÓ |
+| C5b | El estudiante ve el taller y el examen por separado en Mis notas | `GET /notas/` (1001) | **200**; tipos vistos: `taller` y `examen` (cada actividad con su título y nota) | ✅ PASÓ |
+| C6 | Resumen del estudiante: tareas pendientes | `GET /tareas/` (1001) | **200**; hay tareas en estado "Pendiente" y fecha límite más cercana identificable (la UI muestra "N pendientes · Próxima fecha límite: …", o "Estás al día" si no hay) | ✅ PASÓ |
+
+Pruebas adicionales de la misma corrida (mismo suite):
+
+| # | Prueba | Resultado | Estado |
+|---|--------|-----------|--------|
+| E9 | Calificación directa en tarea `taller` | **422** (solo aplica a examen/quiz) | ✅ PASÓ |
+| E10a/b | Entrega sin archivo en taller → **422**; en quiz → **201** con `con_archivo=false` | ambas pasaron | ✅ PASÓ |
+| E11 | Calificar entrega inexistente | **404** | ✅ PASÓ |
+| E12 | Estudiante intenta calificación directa | **403** | ✅ PASÓ |
+| E13a/b | Calificación directa a no matriculado → **422**; a cédula inexistente → **404** | ambas pasaron | ✅ PASÓ |
+| E14 | Calificación negativa (-1.0) | **422** | ✅ PASÓ |
+| E15 | `GET /tareas/{examen}/entregas` | **200** con `calificacion=4.8`, `con_archivo=false`, `sin_calificacion=[]` y `no_entregaron=[]` correctos | ✅ PASÓ |
+| E16 | Descargar archivo de una entrega calificada directamente | **404** `Esta entrega no tiene archivo (la actividad se calificó directamente)` | ✅ PASÓ |
+| E17–E24 | Regresión de la ronda 1 (contadores "X de Y entregaron", admin ve todo, 403 de entregas al estudiante, PDFs reales, 404 claros) | todas pasaron | ✅ PASÓ |
+| PR01b | Crear tarea con tipo inválido (`exposicion`) | **422** `El tipo 'exposicion' no es válido; usa uno de: taller, quiz, examen, trabajo` | ✅ PASÓ |
+
+**Resultado global: 45 de 45 pruebas pasaron** (2 de arranque + 8 obligatorias de la ronda 1 + 9 de calificación C1–C6 + 26 adicionales y de regresión). Ninguna fila falló en la corrida final.
+
+Nota de datos: en la respuesta de `GET /notas/` la lista `actividades` se repite en cada fila de nota de la misma materia (el estudiante demo tiene dos matrículas de M01 en el histórico); el frontend la **deduplica por materia** al renderizar, por lo que Mis notas muestra una tarjeta por actividad.
+
+## Verificación de la interfaz (navegador, ronda 2)
+
+Sobre el portal en `http://localhost:5173`, con sesión real de cada rol:
+
+- **Profesor:** el formulario "Nueva tarea" muestra el selector de tipo (Taller/Quiz/Examen/Trabajo); al elegir **Examen** o **Quiz** el campo de archivo se oculta, se limpia y aparece el aviso "Esta actividad se califica directamente" (Taller/Trabajo lo vuelven a mostrar). En el detalle de entregas: tabla con columna "Calificación (0.0 a 5.0)" editable — se cambió 4.5 → 4.6 y "Guardar" devolvió el aviso "Calificación guardada: 4.6 para 1001." con la fila actualizada; encabezado con chip "N sin calificación". En "No han entregado" de un quiz: campo de nota + botón "Calificar" — se registró 3.5 y el estudiante pasó a la tabla de entregas como "Sin archivo · calificada directamente". Se creó un examen real desde la UI (`631a066e`, sin archivo) con su chip "Examen".
+- **Estudiante:** Mis tareas muestra el **chip de tipo** en cada tarjeta (Taller/Quiz/Examen/Trabajo) y el **chip de nota** cuando existe (`Nota: 4.6`, `Nota: 4.8`, `Nota: 3.5`). El formulario de entrega de un examen indica "Tu archivo (opcional)" con el aviso "Esta actividad se califica directamente", mientras que en un trabajo el archivo sigue obligatorio. El **Resumen** muestra la tarjeta "Mis tareas" con "2 pendientes · Próxima fecha límite: 10 de dic de 2026" (con animación de llegada; texto "Estás al día ✓" cuando no hay pendientes). Mis notas muestra la sección "Calificaciones por actividad" con **taller, examen y quiz por separado**, cada uno con su tipo y nota, deduplicados por materia.
+- **Admin:** Resumen intacto con la tarjeta "Tareas" (total + entregas recibidas); sin cambios de lógica de roles.
+- **Tema oscuro:** los chips de tipo, de nota, el campo de calificación y las tarjetas de actividad toman la paleta oscura al alternar el botón flotante.
+- Consola del navegador durante toda la sesión de los tres roles: **0 errores**.
+
+## Notas de reproducibilidad (ronda 2)
+
+- Aplicar `backend/migrations/V5__tipo_tarea.sql` **después** de V1–V4 (pgAdmin → Query Tool). Es idempotente: usa `IF NOT EXISTS` y recrea los CHECK con `DROP CONSTRAINT IF EXISTS`.
+- En la BD demo usada para estas pruebas V5 ya estaba aplicada (columnas y CHECK verificados en `information_schema` y `pg_constraint`).
+- Las tareas y entregas de la corrida final quedaron en la BD demo para poder navegar el portal (taller 4.6, examen 4.8, quiz 3.5, examen pendiente). La tarea `e2833058` creada manualmente por el usuario se conservó durante la limpieza de datos de prueba.
+- La política de claves se mantiene: las credenciales reales no se publican en el repositorio.

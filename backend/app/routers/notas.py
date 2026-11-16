@@ -58,19 +58,46 @@ def listar_notas(sesion: dict = Depends(autenticar)):
                     detail="Rol no reconocido",
                 )
             filas = cur.fetchall()
-        return [
-            {
-                "id_nota": id_nota,
-                "id_matricula": id_matricula,
-                "id_materia": id_materia,
-                "nota1": float(nota1) if nota1 is not None else None,
-                "nota2": float(nota2) if nota2 is not None else None,
-                "nota3": float(nota3) if nota3 is not None else None,
-                "definitiva": float(definitiva) if definitiva is not None else None,
-                "estado": estado,
-            }
-            for id_nota, id_matricula, id_materia, nota1, nota2, nota3, definitiva, estado in filas
-        ]
+            # Para el estudiante: calificaciones de actividades (taller, quiz,
+            # examen o trabajo) de cada materia, con tipo y título. Las demás
+            # respuestas quedan igual que antes.
+            actividades_por_materia = {}
+            if sesion["rol"] == ROL_ESTUDIANTE:
+                # La calificación que cuenta es la de la entrega más reciente de cada actividad
+                cur.execute(
+                    "SELECT DISTINCT ON (t.id_materia, t.id_tarea) t.id_materia, t.titulo, t.tipo, "
+                    "e.calificacion, e.subida_en "
+                    "FROM tareas t JOIN entregas e ON e.id_tarea = t.id_tarea "
+                    "WHERE e.cedula = %s AND e.calificacion IS NOT NULL "
+                    "ORDER BY t.id_materia, t.id_tarea, e.subida_en DESC",
+                    (sesion["id_persona"],),
+                )
+                for id_materia, titulo, tipo, calificacion, subida_en in cur.fetchall():
+                    actividades_por_materia.setdefault(id_materia, []).append(
+                        {
+                            "titulo": titulo,
+                            "tipo": tipo,
+                            "calificacion": float(calificacion),
+                            "subida_en": subida_en,
+                        }
+                    )
+            es_estudiante = sesion["rol"] == ROL_ESTUDIANTE
+            respuesta = []
+            for id_nota, id_matricula, id_materia, nota1, nota2, nota3, definitiva, estado in filas:
+                fila = {
+                    "id_nota": id_nota,
+                    "id_matricula": id_matricula,
+                    "id_materia": id_materia,
+                    "nota1": float(nota1) if nota1 is not None else None,
+                    "nota2": float(nota2) if nota2 is not None else None,
+                    "nota3": float(nota3) if nota3 is not None else None,
+                    "definitiva": float(definitiva) if definitiva is not None else None,
+                    "estado": estado,
+                }
+                if es_estudiante:
+                    fila["actividades"] = actividades_por_materia.get(id_materia, [])
+                respuesta.append(fila)
+            return respuesta
     finally:
         conn.close()
 
