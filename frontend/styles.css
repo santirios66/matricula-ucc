@@ -233,6 +233,7 @@ body.tema-oscuro button.chip{background:#1c3d52;border-color:#2a4a5e;color:#bfd0
 .actividad-item>div{display:flex;flex-direction:column;gap:8px;min-width:0}
 .actividad-item strong{font-size:14.5px;color:#182f43}
 .stats-estudiante{grid-template-columns:minmax(0,340px)}
+.stat strong.stat-fecha{font-size:19px}
 
 body.tema-oscuro .chip-tipo-taller{background:#12414a;color:#7fd8cc}
 body.tema-oscuro .chip-tipo-quiz{background:#3b2f12;color:#ecc76d}

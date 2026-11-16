@@ -342,8 +342,46 @@ function vistaResumen(){
    if(zona)zona.innerHTML=`<div class="stat"><span>❑ &nbsp; Mis tareas</span><strong>—</strong><span>No se pudieron consultar tus tareas</span></div>`;
   });
  } else {
-  $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Profesor · ID ${esc(SESION.id_persona)}</p></div></div><div class="help"><article><h3>Ingresar notas</h3><p>Elige una de tus materias y califica a sus estudiantes.</p><button data-page="ingresarnotas">Ingresar notas →</button></article><article><h3>Reportes</h3><p>PDF de notas de tus estudiantes.</p><button data-page="reportes">Ver reportes →</button></article></div></section>`;
+  // ====== Panel del profesor: 4 tarjetas de estadísticas de tareas (solo lectura) ======
+  $('#view').innerHTML=`<section class="stats" id="stats-profe" aria-label="Estadísticas de tus tareas"><div class="stat"><span>⌕ &nbsp; Tareas por revisar</span><strong>…</strong><span>Con entregas sin calificar</span></div><div class="stat"><span>❑ &nbsp; Entregas recibidas</span><strong>…</strong><span>En todas tus tareas</span></div><div class="stat"><span>✎ &nbsp; Pendientes de calificar</span><strong>…</strong><span>Entregas sin nota</span></div><div class="stat"><span>⏱ &nbsp; Próxima fecha límite</span><strong class="stat-fecha">…</strong><span>La tarea que vence primero</span></div></section><section class="panel"><div class="panel-top"><div><h2>Bienvenido, ${esc(nombreDe(SESION))}</h2><p>Profesor · ID ${esc(SESION.id_persona)}</p></div></div><div class="help"><article><h3>Ingresar notas</h3><p>Elige una de tus materias y califica a sus estudiantes.</p><button data-page="ingresarnotas">Ingresar notas →</button></article><article><h3>Reportes</h3><p>PDF de notas de tus estudiantes.</p><button data-page="reportes">Ver reportes →</button></article></div></section>`;
   $('#view').querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
+  (async()=>{
+   const zona=$('#stats-profe');
+   if(!zona)return;
+   const pon=(i,valor,texto)=>{const tarjeta=zona.children[i];if(!tarjeta)return;tarjeta.querySelector('strong').textContent=valor;if(texto!=null)tarjeta.querySelector('span:last-child').textContent=texto;};
+   let tareas=null;
+   try{tareas=await apiAuth('/tareas/');}catch(_){}
+   if(current!=='resumen'||!SESION||SESION.rol!=='Profesor')return;
+   if(!zona.isConnected)return;
+   if(!tareas){
+    zona.querySelectorAll('.stat strong').forEach(s=>s.textContent='No disponible');
+    pon(3,'No disponible','No se pudieron consultar tus tareas');
+    animaLlegada(zona);return;
+   }
+   if(!tareas.length){
+    pon(0,'0','Aún no has creado tareas');pon(1,'0 de 0','Aún no has creado tareas');
+    pon(2,'0','Aún no has creado tareas');pon(3,'—','Sin tareas por vencer');
+    animaLlegada(zona);return;
+   }
+   // Detalle de entregas por tarea: cada consulta es independiente (un fallo no bloquea las demás)
+   const resultados=await Promise.allSettled(tareas.map(t=>apiAuth(`/tareas/${t.id_tarea}/entregas`)));
+   if(current!=='resumen'||!SESION||SESION.rol!=='Profesor')return;
+   if(!zona.isConnected)return;
+   const sinNotaTotal=resultados.reduce((s,r)=>r.status==='fulfilled'?s+(r.value.entregas||[]).filter(e=>e.calificacion==null).length:s,0);
+   const conSinNota=resultados.filter(r=>r.status==='fulfilled'&&(r.value.entregas||[]).some(e=>e.calificacion==null)).length;
+   const falloEntregas=resultados.some(r=>r.status!=='fulfilled');
+   const recibidas=tareas.reduce((s,t)=>s+(t.entregas_recibidas||0),0);
+   const matriculados=tareas.reduce((s,t)=>s+(t.matriculados||0),0);
+   // Próxima fecha límite: la vigente más cercana entre todas las tareas del profesor
+   const futura=tareas.map(t=>({t,d:new Date(t.fecha_limite)})).filter(x=>x.t.fecha_limite&&plazoVigente(x.t.fecha_limite)).sort((a,b)=>a.d-b.d)[0];
+   const fechaCorta=d=>d.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})+' · '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+   if(falloEntregas){pon(0,'No disponible',null);pon(2,'No disponible',null);}
+   else{pon(0,String(conSinNota),null);pon(2,String(sinNotaTotal),null);}
+   pon(1,`${recibidas} de ${matriculados}`,null);
+   if(futura)pon(3,fechaCorta(futura.d),futura.t.titulo);
+   else pon(3,'—','Sin tareas por vencer');
+   animaLlegada(zona);
+  })();
  }
 }
 
