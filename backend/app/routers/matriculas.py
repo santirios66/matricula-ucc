@@ -11,13 +11,41 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 try:
+    from app.calculo_notas import calcular_notas_por_momento
     from app.database import obtener_conexion
     from app.seguridad_api import ROL_ADMIN, ROL_ESTUDIANTE, ROL_PROFESOR, autenticar, require_admin
 except ImportError:
+    from calculo_notas import calcular_notas_por_momento
     from database import obtener_conexion
     from seguridad_api import ROL_ADMIN, ROL_ESTUDIANTE, ROL_PROFESOR, autenticar, require_admin
 
 router = APIRouter(prefix="/matriculas", tags=["matriculas"])
+
+
+def _aprobadas_por_materia(cur, cedula):
+    """Definitiva más alta alcanzada por el estudiante en cada materia.
+
+    Misma regla académica de la Parte 1 (materias-disponibles): cuenta las
+    notas registradas a mano en la tabla notas y, para las matrículas sin
+    notas, la definitiva calculada desde las tareas con momento (V6).
+    Devuelve {id_materia: definitiva}; una materia está aprobada con >= 3.0.
+    """
+    cur.execute(
+        "SELECT m.id_materia, MAX(n.definitiva) FROM notas n "
+        "JOIN matriculas m ON m.id_matricula = n.id_matricula "
+        "WHERE m.cedula = %s GROUP BY m.id_materia",
+        (cedula,),
+    )
+    definitiva_por_materia = {
+        id_materia: float(definitiva) for id_materia, definitiva in cur.fetchall()
+    }
+    for calculo in calcular_notas_por_momento(cur, cedula).values():
+        if calculo["definitiva"] is None:
+            continue
+        actual = definitiva_por_materia.get(calculo["id_materia"])
+        if actual is None or calculo["definitiva"] > actual:
+            definitiva_por_materia[calculo["id_materia"]] = calculo["definitiva"]
+    return definitiva_por_materia
 
 
 class MatriculaCreate(BaseModel):
@@ -348,6 +376,34 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                             f"La materia '{nombre_materia}' no tiene cupos disponibles "
                             f"en el periodo '{periodo}' ({matriculados} de {cupos_materia})"
                         ),
+                    )
+            # 4c. Requisitos previos (V8): cada materia del carrito con requisito
+            # exige que el estudiante lo tenga aprobado (definitiva >= 3.0 en
+            # sus notas, a mano o calculadas por momento, la regla de la Parte 1)
+            cur.execute(
+                "SELECT r.id_materia, r.id_requisito, ma.nombre_curso, mr.nombre_curso "
+                "FROM requisitos r "
+                "JOIN materias ma ON ma.id_materia = r.id_materia "
+                "JOIN materias mr ON mr.id_materia = r.id_requisito "
+                "WHERE r.id_materia = ANY(%s) "
+                "ORDER BY ma.nombre_curso, mr.nombre_curso",
+                (id_materias,),
+            )
+            requisitos_del_carrito = cur.fetchall()
+            if requisitos_del_carrito:
+                aprobadas = _aprobadas_por_materia(cur, cedula)
+                faltantes = []
+                for _, id_requisito, nombre_materia_req, nombre_requisito in requisitos_del_carrito:
+                    definitiva_req = aprobadas.get(id_requisito)
+                    if definitiva_req is None or definitiva_req < 3.0:
+                        faltantes.append(
+                            f"'{nombre_materia_req}' requiere '{nombre_requisito}' aprobada "
+                            f"(definitiva >= 3.0)"
+                        )
+                if faltantes:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Requisitos previos sin aprobar: " + "; ".join(faltantes),
                     )
             # 5. Inserta todas en una sola transacción
             creadas = []
