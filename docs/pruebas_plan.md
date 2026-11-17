@@ -22,13 +22,13 @@ Fecha de ejecución: 2026-11-16 · Periodo vigente usado: **2026-2** (2026-11-01
 | T1d | Semestres y electiva correctos | mismo GET | B01 sem 1 obligatoria; B04 y B05 sem 2; IS08 sem 8; IS06 con `obligatoria=false` | ✅ PASÓ |
 | T1e | Todas las filas del programa correcto | mismo GET | `id_programa=P01` en las 13 filas | ✅ PASÓ |
 | T2 | Estudiante de Enfermería **no ve materias de Ingeniería** | `GET /estudiantes/2001/materias-disponibles` | **200** con exactamente EN01–EN08; cero materias B/IS/IC | ✅ PASÓ |
-| T3 | **Materia de otro programa en el lote → 422 esperado** | `POST /matriculas/lote` (1001 con EN01) | **FAIL actual: 201** — el lote aún no valida el plan; la validación en el lote (422) es el entregable de la **PARTE 3** | ❌ PENDIENTE (Parte 3) |
+| T3 | **Materia de otro programa en el lote → 422 esperado** | `POST /matriculas/lote` (1001 con EN01) | **422** `Materias fuera del plan de estudios: 'Fundamentos de Enfermería' no pertenece al plan de 'Ingeniería de Sistemas'` — resuelto en la **PARTE 3** (ver `docs/pruebas_plan_lote.md`) | ✅ PASA (desde la Parte 3) |
 | E1 | Estudiante inexistente | `GET /estudiantes/9999/materias-disponibles` | **404** `No existe el estudiante con cédula '9999'` | ✅ PASÓ |
 | E2a | Estado **Matriculada** dentro del plan | lote con B01 + mismo GET | **201** y B01 aparece `estado="Matriculada"` | ✅ PASÓ |
 | E2b | Estado **Aprobada** con notas a mano | `POST /notas/` (4.0/4.5/3.5) + mismo GET | **201** y B01 aparece `estado="Aprobada"` con `definitiva=4.0` | ✅ PASÓ |
 | L1 | Limpieza de datos de prueba | — | Matrículas y notas creadas por el suite eliminadas (la BD demo quedó con sus 4 matrículas originales) | ✅ PASÓ |
 
-**Resultado: 12 de 13 pruebas pasaron.** La única que falla es T3 por alcance: el rechazo de materias fuera del plan en el lote se implementa en la Parte 3 ("validación de plan en lote"); hoy el lote sigue aceptando cualquier materia existente (comportamiento anterior a V7, sin cambios en esta parte). El dato creado por esa prueba se eliminó para dejar la BD limpia.
+**Resultado: 12 de 13 pruebas pasaron al cierre de la Parte 1. La única que fallaba era T3 por alcance: el rechazo de materias fuera del plan en el lote se implementó en la Parte 3 ("validación de plan en lote"); hoy el lote la rechaza con 422 y la prueba pasa (13/13 al repetir la suite, ver `docs/pruebas_plan_lote.md`). El dato creado por esa prueba se eliminó para dejar la BD limpia.**
 
 ## Verificación de la interfaz (navegador)
 

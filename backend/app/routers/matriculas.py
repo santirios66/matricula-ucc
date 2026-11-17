@@ -256,8 +256,10 @@ def crear_matricula(matricula: MatriculaCreate, sesion: dict = Depends(autentica
 def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(autenticar)):
     """Matricula varias materias del carrito en una sola transacción.
 
-    Valida rol, periodo vigente, cupos, duplicados y el total de créditos
-    del periodo (entre 6 y 19). Si algo falla, no se guarda nada.
+    Valida rol, periodo vigente, que las materias pertenezcan al plan del
+    programa del estudiante, cupos, duplicados, requisitos previos y el
+    total de créditos del periodo (entre 6 y 19). Si algo falla, no se
+    guarda nada.
     """
     cedula = lote.cedula.strip()
     periodo = lote.periodo.strip()
@@ -299,21 +301,47 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                         f"({fecha_inicio} a {fecha_fin}); hoy es {hoy}"
                     ),
                 )
-            # 1. El estudiante debe existir
+            # 1. El estudiante debe existir; traemos su programa para el paso 2b
             cur.execute(
-                "SELECT 1 FROM estudiantes WHERE id_estudiante = %s",
+                "SELECT e.id_programa, p.nombre_programa FROM estudiantes e "
+                "JOIN programas p ON p.id_programa = e.id_programa "
+                "WHERE e.id_estudiante = %s",
                 (cedula,),
             )
-            if cur.fetchone() is None:
+            fila_estudiante = cur.fetchone()
+            if fila_estudiante is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No existe el estudiante con cédula '{cedula}'",
                 )
+            id_programa, nombre_programa = fila_estudiante
             # 2. Sin repetidas dentro del mismo carrito
             if len(set(id_materias)) != len(id_materias):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="El carrito tiene materias repetidas",
+                )
+            # 2b. Plan del programa (V7): todas las materias del carrito deben
+            # estar en el plan de ESTE programa (validación por programa, no
+            # por facultad; cierra el hueco de la auditoría)
+            cur.execute(
+                "SELECT m.nombre_curso FROM materias m "
+                "WHERE m.id_materia = ANY(%s) "
+                "AND NOT EXISTS ("
+                "SELECT 1 FROM plan_estudios pe "
+                "WHERE pe.id_materia = m.id_materia AND pe.id_programa = %s) "
+                "ORDER BY m.nombre_curso",
+                (id_materias, id_programa),
+            )
+            fuera_del_plan = [fila[0] for fila in cur.fetchall()]
+            if fuera_del_plan:
+                faltantes = ", ".join(f"'{nombre}'" for nombre in fuera_del_plan)
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "Materias fuera del plan de estudios: "
+                        f"{faltantes} no pertenece al plan de '{nombre_programa}'"
+                    ),
                 )
             # 3. Créditos: materias existentes + SUM del periodo, todo en SQL
             cur.execute(
