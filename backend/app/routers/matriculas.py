@@ -343,7 +343,31 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                         f"{faltantes} no pertenece al plan de '{nombre_programa}'"
                     ),
                 )
-            # 3. Créditos: materias existentes + SUM del periodo, todo en SQL
+            # 3. Bloqueos de concurrencia (Parte 4): dentro de la transacción se
+            # bloquean las filas ANTES de contar cupos y créditos, siempre en el
+            # mismo orden para evitar interbloqueos:
+            #   a) fila del estudiante: serializa dos lotes del mismo estudiante
+            #      aunque aún no tenga matrículas (el SUM no puede correr en
+            #      paralelo con el INSERT del otro lote),
+            #   b) sus matrículas del periodo (las que existan),
+            #   c) las materias del carrito por id_materia ascendente: serializa
+            #      dos lotes que pegan por el último cupo; el que espera cuenta
+            #      los cupos DESPUÉS de que el otro confirmó, y ve sus filas.
+            cur.execute(
+                "SELECT id_estudiante FROM estudiantes WHERE id_estudiante = %s FOR UPDATE",
+                (cedula,),
+            )
+            cur.execute(
+                "SELECT id_matricula FROM matriculas WHERE cedula = %s AND periodo = %s "
+                "ORDER BY id_matricula FOR UPDATE",
+                (cedula, periodo),
+            )
+            cur.execute(
+                "SELECT id_materia, cupos, creditos, nombre_curso FROM materias "
+                "WHERE id_materia = ANY(%s) ORDER BY id_materia FOR UPDATE",
+                (id_materias,),
+            )
+            # 3b. Créditos: materias existentes + SUM del periodo, todo en SQL
             cur.execute(
                 "SELECT COALESCE(SUM(creditos), 0) FROM matriculas WHERE cedula = %s AND periodo = %s",
                 (cedula, periodo),
@@ -386,7 +410,9 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Ya están matriculadas en el periodo '{periodo}': {', '.join(repetidas)}",
                 )
-            # 4b. Cupos de cada materia del carrito (todo antes de insertar nada)
+            # 4b. Cupos de cada materia del carrito (después de los FOR UPDATE
+            # del paso 3: el conteo ve las filas confirmadas por el lote que
+            # esperó el bloqueo; todo antes de insertar nada)
             cur.execute(
                 "SELECT mat.id_materia, mat.nombre_curso, mat.cupos, "
                 "COUNT(m.id_matricula) AS matriculados "
