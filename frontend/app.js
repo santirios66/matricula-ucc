@@ -255,9 +255,9 @@ const modules = {
     ['creditos','Créditos','number',1],
     ['cupos','Cupos','number',0],
     ['id_facultad','Facultad','select',null,'facultades'],
-    ['dia','Día','text',20,null,true],
-    ['hora_inicio','Hora inicio','text',10,null,true],
-    ['hora_fin','Hora fin','text',10,null,true],
+    ['dia','Día','select',null,null,true],
+    ['hora_inicio','Hora inicio','select',null,null,true],
+    ['hora_fin','Hora fin','select',null,null,true],
     ['horario','Horario','text',100,null,true],
     ['id_profesor','Profesor','select',null,'profesores']]},
  periodos:{title:'Periodos',singular:'periodo',icon:'⏱',description:'Ventanas de fechas en las que se puede matricular.',fields:[['periodo','Periodo (ej. 2026-2)','text',10],['fecha_inicio','Fecha inicio (YYYY-MM-DD)','date',null],['fecha_fin','Fecha fin (YYYY-MM-DD)','date',null]]},
@@ -449,11 +449,24 @@ function openForm(idMateria){
  }
  $('#fields').innerHTML=m.fields.map(([key,label,type,limit,source,optional])=>{
   let control;
-  if(type==='select'){
-   const rows=data[source]||[],id=modules[source].fields[0][0];
-   const val=fila?fila[key]:'';
-   control=`<select name="${key}" id="field-${key}" required><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}"${val===r[id]?' selected':''}>${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
-  }else {
+   if(type==='select'){
+   if(key==='dia'||key==='hora_inicio'||key==='hora_fin'){
+    let opcionesHtml='';
+    if(key==='dia'){
+     const dias=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+     opcionesHtml=dias.map(d=>`<option value="${d}"${val===d?' selected':''}>${esc(d)}</option>`).join('');
+    }else{
+     const horas=[];
+     for(let h=7;h<=22;h++){for(let m=0;m<60;m+=30){const hh=String(h).padStart(2,'0'),mm=String(m).padStart(2,'0');horas.push(`${hh}:${mm}`);}}
+     opcionesHtml=horas.map(h=>`<option value="${h}"${val===h?' selected':''}>${esc(h)}</option>`).join('');
+    }
+    control=`<select name="${key}" id="field-${key}"><option value="">Selecciona una opción</option>${opcionesHtml}</select>`;
+   }else{
+    const rows=data[source]||[],id=modules[source].fields[0][0];
+    const val=fila?fila[key]:'';
+    control=`<select name="${key}" id="field-${key}" ${key==='dia'||key==='hora_inicio'||key==='hora_fin'?'':'required'}><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}"${val===r[id]?' selected':''}>${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
+   }
+   }else {
     const val=fila&&!optional?`value="${esc(fila[key]??'')}"`:'';
     const readonly=key==='id_materia'&&editandoMateria?'readonly':'';
     control=`<input id="field-${key}" name="${key}" type="${type}" ${optional?'':'required'} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`} ${key==='cupos'?'value="20"':''}>`;
