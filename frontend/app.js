@@ -249,7 +249,17 @@ const modules = {
  profesores:{title:'Profesores',singular:'profesor',icon:'♧',description:'Organiza el equipo docente y sus datos de identificación.',fields:[['id_profesor','ID del profesor','text',20],['nombre','Nombres','text',60],['apellidos','Apellidos','text',60]]},
  facultades:{title:'Facultades',singular:'facultad',icon:'▦',description:'Administra las facultades que organizan la oferta académica.',fields:[['id_facultad','Código','text',10],['nombre_facultad','Nombre de la facultad','text',100]]},
  programas:{title:'Programas',singular:'programa',icon:'▤',description:'Conecta cada programa académico con su facultad.',fields:[['id_programa','Código','text',10],['nombre_programa','Nombre del programa','text',100],['id_facultad','Facultad','select',null,'facultades']]},
- materias:{title:'Materias',singular:'materia',icon:'▥',description:'Gestiona la oferta de cursos, sus horarios y profesores.',fields:[['id_materia','Código','text',10],['nombre_curso','Nombre del curso','text',100],['creditos','Créditos','number',1],['cupos','Cupos','number',0],['id_facultad','Facultad','select',null,'facultades'],['horario','Horario','text',100,null,true],['id_profesor','Profesor','select',null,'profesores']]},
+ materias:{title:'Materias',singular:'materia',icon:'▥',description:'Gestiona la oferta de cursos, sus horarios y profesores.',fields:[
+    ['id_materia','Código','text',10],
+    ['nombre_curso','Nombre del curso','text',100],
+    ['creditos','Créditos','number',1],
+    ['cupos','Cupos','number',0],
+    ['id_facultad','Facultad','select',null,'facultades'],
+    ['dia','Día','text',20,null,true],
+    ['hora_inicio','Hora inicio','text',10,null,true],
+    ['hora_fin','Hora fin','text',10,null,true],
+    ['horario','Horario','text',100,null,true],
+    ['id_profesor','Profesor','select',null,'profesores']]},
  periodos:{title:'Periodos',singular:'periodo',icon:'⏱',description:'Ventanas de fechas en las que se puede matricular.',fields:[['periodo','Periodo (ej. 2026-2)','text',10],['fecha_inicio','Fecha inicio (YYYY-MM-DD)','date',null],['fecha_fin','Fecha fin (YYYY-MM-DD)','date',null]]},
 };
 function relatedLabel(key,id){
@@ -257,8 +267,8 @@ function relatedLabel(key,id){
  return row ? `${id} · ${row.nombre_facultad||row.nombre_programa||row.nombre_curso||[row.nombre,row.apellidos].filter(Boolean).join(' ')}` : id;
 }
 function display(row,field){return field[4]?relatedLabel(field[4],row[field[0]]):row[field[0]];}
-function table(key,rows){const m=modules[key];const conPlan=key==='programas';
- return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${conPlan?'<th scope="col">Plan de estudios</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
+function table(key,rows){const m=modules[key];const conPlan=key==='programas';const conAcciones=key==='materias';
+ return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${conPlan?'<th scope="col">Plan de estudios</th>':''}${conAcciones?'<th scope="col">Acciones</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}${conAcciones?`<td><button type="button" class="secondary btn-editar" data-id="${esc(row.id_materia)}">Editar</button><button type="button" class="secondary btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}">Eliminar ✕</button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
 
 // ====== Render principal ======
 function go(key){
@@ -390,6 +400,8 @@ function vistaResumen(){
 // ====== Catálogo (solo admin) ======
 // Plan de estudios abierto (drill-down dentro de Programas; estado solo en memoria)
 let planDe=null;
+// Materia en edición (null = crear nueva)
+let editandoMateria=null;
 async function vistaCatalogo(){
  const key=current, m=modules[key];
  if(!m){$('#view').innerHTML=vacio('◈','Pantalla no disponible','Vuelve al resumen y elige una sección del menú.');return;}
@@ -412,14 +424,40 @@ function renderRows(query=''){
  $('#count').textContent=`${rows.length} de ${all.length} registros`;
  area.innerHTML=rows.length?table(key,rows):(q?vacio('⌕','Sin coincidencias',`Ningún registro coincide con "${query}". Prueba con otro término.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
  area.querySelectorAll('.btn-plan').forEach(b=>b.onclick=()=>{planDe=b.dataset.id;vistaPlanPrograma(b.dataset.id);});
+  area.querySelectorAll('.btn-editar').forEach(b=>b.onclick=()=>openForm(b.dataset.id));
+  area.querySelectorAll('.btn-eliminar').forEach(b=>b.onclick=async()=>{
+    if(!confirm(`¿Eliminar '${b.dataset.nombre}'?`))return;
+    try{
+      await apiAuth(`/materias/${encodeURIComponent(b.dataset.id)}`,{method:'DELETE'});
+      notice(`Materia ${b.dataset.id} eliminada.`,true);
+      await renderRows();
+    }catch(error){notice(error.message);}
+  });
 }
-function openForm(){
- const m=modules[current];$('#form').reset();$('#form-error').textContent='';$('#dialog-title').textContent=`Registrar ${m.singular}`;$('#dialog-eyebrow').textContent='NUEVO REGISTRO';$('#dialog-hint').textContent='Completa los datos. Los campos con * son obligatorios.';
+function openForm(idMateria){
+ const m=modules[current];$('#form').reset();$('#form-error').textContent='';
+ editandoMateria=idMateria||null;let fila=null;
+ if(editandoMateria){
+  $('#dialog-title').textContent=`Editar ${m.singular}`;
+  $('#dialog-eyebrow').textContent='EDITAR REGISTRO';
+  $('#dialog-hint').textContent='Modifica los campos que quieras cambiar y guarda.';
+  fila=(data[current]||[]).find(r=>r[m.fields[0][0]]===editandoMateria);
+ }else{
+  $('#dialog-title').textContent=`Registrar ${m.singular}`;
+  $('#dialog-eyebrow').textContent='NUEVO REGISTRO';
+  $('#dialog-hint').textContent='Completa los datos. Los campos con * son obligatorios.';
+ }
  $('#fields').innerHTML=m.fields.map(([key,label,type,limit,source,optional])=>{
   let control;
   if(type==='select'){
-   const rows=data[source]||[],id=modules[source].fields[0][0];control=`<select name="${key}" id="field-${key}" required><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}">${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
-  }else control=`<input id="field-${key}" name="${key}" type="${type}" ${optional?'':'required'} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`} ${key==='cupos'?'value="20"':''}>`;
+   const rows=data[source]||[],id=modules[source].fields[0][0];
+   const val=fila?fila[key]:'';
+   control=`<select name="${key}" id="field-${key}" required><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}"${val===r[id]?' selected':''}>${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
+  }else {
+    const val=fila&&!optional?`value="${esc(fila[key]??'')}"`:'';
+    const readonly=key==='id_materia'&&editandoMateria?'readonly':'';
+    control=`<input id="field-${key}" name="${key}" type="${type}" ${optional?'':'required'} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`} ${key==='cupos'?'value="20"':''}>`;
+  }
   return `<div><label for="field-${key}">${label}${optional?' (opcional)':' *'}</label>${control}</div>`;
  }).join('');
  const missing=m.fields.filter(f=>f[4]&&(!data[f[4]]?.length||errors[f[4]]));
@@ -437,7 +475,9 @@ $('#form').onsubmit=async e=>{
   payload[name]=type==='number'?Number(raw):(raw||null);
  }
  saving=true;$('#save').disabled=true;$('#save').textContent='Guardando…';$('#cancel').disabled=true;$('#close').disabled=true;
- try{await apiAuth(`/${key}/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();await refreshCatalogos();pintaFranja(key);renderRows();if(!errors[key])notice('Registro guardado correctamente.',true);}
+ const metodo=editandoMateria?'PUT':'POST';
+  const ruta=editandoMateria?`/${key}/${encodeURIComponent(editandoMateria)}` : `/${key}/`;
+  try{await apiAuth(ruta,{method:metodo,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();editandoMateria=null;await refreshCatalogos();pintaFranja(key);renderRows();if(!errors[key])notice(`Registro ${editandoMateria?'actualizado':'guardado'} correctamente.`,true);}
  catch(error){$('#form-error').textContent=mensajeRol(error);}
  finally{saving=false;$('#save').disabled=false;$('#save').textContent='Guardar registro';$('#cancel').disabled=false;$('#close').disabled=false;}
 };
@@ -880,3 +920,4 @@ $('#app-workspace').appendChild(btnTema);
 $('#refresh').onclick=async()=>{if(loading)return;loading=true;$('#refresh').disabled=true;notice('');await refreshCatalogos();loading=false;$('#refresh').disabled=false;render();};
 window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){const origen=current;planDe=null;current=destino;animarSeccion(destino,origen);}});
 current='resumen';
+
