@@ -282,3 +282,43 @@ body.tema-oscuro .plan-semestre{background:#0f2a3b;border-color:#2a4a5e;color:#d
 body.tema-oscuro .plan-semestre-label{color:#9db4c0}
 body.tema-oscuro #plan-error{color:#ff9299}
 body.tema-oscuro button.plan-quitar{color:#ff9299}
+
+/* ====== Botones de acción de la tabla Materias ====== */
+table .btn-editar,
+table .btn-eliminar{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 12px;
+  border-radius:6px;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+  border:none;
+  transition:all .15s ease;
+  margin-right:4px;
+}
+table .btn-editar{
+  background:#007c82;
+  color:white;
+}
+table .btn-editar:hover{
+  background:#005f64;
+  transform:translateY(-1px);
+}
+table .btn-eliminar{
+  background:#b02a37;
+  color:white;
+}
+table .btn-eliminar:hover{
+  background:#8e1e29;
+  transform:translateY(-1px);
+}
+table .btn-editar:active,
+table .btn-eliminar:active{
+  transform:translateY(0);
+}
+body.tema-oscuro table .btn-editar{background:#009aa5}
+body.tema-oscuro table .btn-editar:hover{background:#007c82}
+body.tema-oscuro table .btn-eliminar{background:#e06c6c}
+body.tema-oscuro table .btn-eliminar:hover{background:#c45757}

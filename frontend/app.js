@@ -424,7 +424,12 @@ function renderRows(query=''){
  $('#count').textContent=`${rows.length} de ${all.length} registros`;
  area.innerHTML=rows.length?table(key,rows):(q?vacio('⌕','Sin coincidencias',`Ningún registro coincide con "${query}". Prueba con otro término.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
  area.querySelectorAll('.btn-plan').forEach(b=>b.onclick=()=>{planDe=b.dataset.id;vistaPlanPrograma(b.dataset.id);});
-  area.querySelectorAll('.btn-editar').forEach(b=>b.onclick=()=>openForm(b.dataset.id));
+  area.querySelectorAll('.btn-editar').forEach(b=>b.onclick=async()=>{
+    try{
+      if(current!=='materias'){await go('materias');}
+      openForm(b.dataset.id);
+    }catch(error){notice(error.message);}
+  });
   area.querySelectorAll('.btn-eliminar').forEach(b=>b.onclick=async()=>{
     if(!confirm(`¿Eliminar '${b.dataset.nombre}'?`))return;
     try{
