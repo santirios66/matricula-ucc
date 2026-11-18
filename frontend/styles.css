@@ -283,42 +283,45 @@ body.tema-oscuro .plan-semestre-label{color:#9db4c0}
 body.tema-oscuro #plan-error{color:#ff9299}
 body.tema-oscuro button.plan-quitar{color:#ff9299}
 
-/* ====== Botones de acción de la tabla Materias ====== */
-table .btn-editar,
-table .btn-eliminar{
+/* ====== Acciones de la tabla: botones con icono ====== */
+td.acciones{white-space:nowrap}
+table .btn-icono{
   display:inline-flex;
   align-items:center;
-  gap:6px;
-  padding:6px 12px;
-  border-radius:6px;
-  font-size:12px;
-  font-weight:600;
+  justify-content:center;
+  width:34px;
+  height:34px;
+  padding:0;
+  margin-right:6px;
+  border:1px solid transparent;
+  border-radius:9px;
+  background:#eef4f7;
+  color:#0f6b70;
   cursor:pointer;
-  border:none;
-  transition:all .15s ease;
-  margin-right:4px;
+  vertical-align:middle;
+  transition:background .15s ease,color .15s ease,transform .15s ease,box-shadow .15s ease;
 }
-table .btn-editar{
-  background:#007c82;
-  color:white;
+table .btn-icono svg{
+  width:16px;
+  height:16px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  pointer-events:none;
 }
-table .btn-editar:hover{
-  background:#005f64;
+table .btn-icono:hover{
+  background:#0f6b70;
+  color:#fff;
   transform:translateY(-1px);
+  box-shadow:0 4px 10px rgba(15,107,112,.28);
 }
-table .btn-eliminar{
-  background:#b02a37;
-  color:white;
-}
-table .btn-eliminar:hover{
-  background:#8e1e29;
-  transform:translateY(-1px);
-}
-table .btn-editar:active,
-table .btn-eliminar:active{
-  transform:translateY(0);
-}
-body.tema-oscuro table .btn-editar{background:#009aa5}
-body.tema-oscuro table .btn-editar:hover{background:#007c82}
-body.tema-oscuro table .btn-eliminar{background:#e06c6c}
-body.tema-oscuro table .btn-eliminar:hover{background:#c45757}
+table .btn-icono:active{transform:translateY(0);box-shadow:none}
+table .btn-icono:focus-visible{outline:2px solid #0f6b70;outline-offset:2px}
+table .btn-icono-peligro{background:#fdeeee;color:#b02a37}
+table .btn-icono-peligro:hover{background:#b02a37;color:#fff;box-shadow:0 4px 10px rgba(176,42,55,.28)}
+body.tema-oscuro table .btn-icono{background:#133145;color:#7fd8cc}
+body.tema-oscuro table .btn-icono:hover{background:#007c82;color:#fff}
+body.tema-oscuro table .btn-icono-peligro{background:#3b1219;color:#ff9299}
+body.tema-oscuro table .btn-icono-peligro:hover{background:#b02a37;color:#fff}

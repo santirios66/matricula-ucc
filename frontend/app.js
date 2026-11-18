@@ -268,7 +268,7 @@ function relatedLabel(key,id){
 }
 function display(row,field){return field[4]?relatedLabel(field[4],row[field[0]]):row[field[0]];}
 function table(key,rows){const m=modules[key];const conPlan=key==='programas';const conAcciones=key==='materias';
- return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${conPlan?'<th scope="col">Plan de estudios</th>':''}${conAcciones?'<th scope="col">Acciones</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}${conAcciones?`<td><button type="button" class="secondary btn-editar" data-id="${esc(row.id_materia)}">Editar</button><button type="button" class="secondary btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}">Eliminar ✕</button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
+ return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${conPlan?'<th scope="col">Plan de estudios</th>':''}${conAcciones?'<th scope="col">Acciones</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}${conAcciones?`<td class="acciones"><button type="button" class="btn-icono btn-editar" data-id="${esc(row.id_materia)}" title="Editar ${esc(row.nombre_curso)}" aria-label="Editar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="btn-icono btn-icono-peligro btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}" title="Eliminar ${esc(row.nombre_curso)}" aria-label="Eliminar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
 
 // ====== Render principal ======
 function go(key){
@@ -408,7 +408,7 @@ async function vistaCatalogo(){
  if(key==='programas'&&planDe){vistaPlanPrograma(planDe);return;}
  $('#refresh').hidden=false;
  $('#view').innerHTML=`<div id="franja-zone"></div><section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…"><span class="count" id="count"></span></div><div id="rows"></div></section>`;
- $('#new').onclick=openForm;$('#search').oninput=e=>renderRows(e.target.value);
+ $('#new').onclick=()=>openForm();$('#search').oninput=e=>renderRows(e.target.value);
  renderRows();
  await asegurarCatalogos();
  if(current!==key) return;
@@ -435,7 +435,8 @@ function renderRows(query=''){
     try{
       await apiAuth(`/materias/${encodeURIComponent(b.dataset.id)}`,{method:'DELETE'});
       notice(`Materia ${b.dataset.id} eliminada.`,true);
-      await renderRows();
+      await refreshCatalogos();
+      renderRows();
     }catch(error){notice(error.message);}
   });
 }
@@ -455,7 +456,6 @@ function openForm(idMateria){
  $('#fields').innerHTML=m.fields.map(([key,label,type,limit,source,optional])=>{
   let control;
    if(type==='select'){
-    const rows=data[source]||[],id=modules[source].fields[0][0];
     const val=fila?fila[key]:'';
     if(key==='dia'||key==='hora_inicio'||key==='hora_fin'){
     let opcionesHtml='';
@@ -470,13 +470,12 @@ function openForm(idMateria){
     control=`<select name="${key}" id="field-${key}"><option value="">Selecciona una opción</option>${opcionesHtml}</select>`;
    }else{
     const rows=data[source]||[],id=modules[source].fields[0][0];
-    const val=fila?fila[key]:'';
     control=`<select name="${key}" id="field-${key}" ${key==='dia'||key==='hora_inicio'||key==='hora_fin'?'':'required'}><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}"${val===r[id]?' selected':''}>${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
    }
    }else {
-    const val=fila&&!optional?`value="${esc(fila[key]??'')}"`:'';
+    const baseVal=fila?(fila[key]??''):(key==='cupos'?20:'');
     const readonly=key==='id_materia'&&editandoMateria?'readonly':'';
-    control=`<input id="field-${key}" name="${key}" type="${type}" ${optional?'':'required'} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`} ${key==='cupos'?'value="20"':''}>`;
+    control=`<input id="field-${key}" name="${key}" type="${type}" value="${esc(baseVal)}" ${optional?'':'required'} ${readonly} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`}>`;
   }
   return `<div><label for="field-${key}">${label}${optional?' (opcional)':' *'}</label>${control}</div>`;
  }).join('');
@@ -497,7 +496,7 @@ $('#form').onsubmit=async e=>{
  saving=true;$('#save').disabled=true;$('#save').textContent='Guardando…';$('#cancel').disabled=true;$('#close').disabled=true;
  const metodo=editandoMateria?'PUT':'POST';
   const ruta=editandoMateria?`/${key}/${encodeURIComponent(editandoMateria)}` : `/${key}/`;
-  try{await apiAuth(ruta,{method:metodo,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();editandoMateria=null;await refreshCatalogos();pintaFranja(key);renderRows();if(!errors[key])notice(`Registro ${editandoMateria?'actualizado':'guardado'} correctamente.`,true);}
+  try{await apiAuth(ruta,{method:metodo,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();editandoMateria=null;await refreshCatalogos();pintaFranja(key);renderRows();if(!errors[key])notice(`Registro ${metodo==='PUT'?'actualizado':'guardado'} correctamente.`,true);}
  catch(error){$('#form-error').textContent=mensajeRol(error);}
  finally{saving=false;$('#save').disabled=false;$('#save').textContent='Guardar registro';$('#cancel').disabled=false;$('#close').disabled=false;}
 };
