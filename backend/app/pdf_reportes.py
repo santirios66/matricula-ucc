@@ -264,37 +264,63 @@ def generar_pdf_notas(cedula):
     doc.build(contenido)
     return True, archivo
 
-def generar_pdf_matricula(cedula):
-    """ Genera el recibo de las materias matriculadas por el estudiante. """
+def generar_pdf_matricula(cedula, periodo=None):
+    """ Genera el recibo de las materias matriculadas en UN periodo.
+
+    El recibo se pide por periodo, no por cédula: muestra solo las materias
+    de ese periodo y su total de créditos. El radicado es el del lote (V9)
+    con el que se crearon esas matrículas (el más reciente si hubo varios
+    lotes en el periodo); si no se indica periodo, se usa el más reciente
+    con matrículas. Las matrículas anteriores a los lotes (sin id_lote) se
+    marcan con un aviso, sin inventar radicado.
+    """
     estudiante = _estudiante(cedula)
     if not estudiante:
         return False, "El estudiante no existe."
 
+    if periodo is None:
+        # Sin periodo explícito: el más reciente con matrículas de este estudiante
+        filas_periodos = _consulta(
+            "SELECT DISTINCT periodo FROM matriculas WHERE cedula = %s ORDER BY periodo DESC",
+            (cedula,),
+        )
+        if not filas_periodos:
+            return False, "El estudiante no tiene materias matriculadas."
+        periodo = filas_periodos[0][0]
+
     filas = _consulta(
         """
-        SELECT m.id_matricula, m.id_materia, mat.nombre_curso, m.creditos, m.periodo, m.fecha_matricula
+        SELECT m.id_matricula, m.id_materia, mat.nombre_curso, m.creditos,
+               m.periodo, m.fecha_matricula, m.id_lote
         FROM matriculas m
         JOIN materias mat ON mat.id_materia = m.id_materia
-        WHERE m.cedula = %s
-        ORDER BY m.periodo, m.fecha_matricula, m.id_matricula
+        WHERE m.cedula = %s AND m.periodo = %s
+        ORDER BY m.fecha_matricula, m.id_matricula
         """,
-        (cedula,),
+        (cedula, periodo),
     )
     if not filas:
-        return False, "El estudiante no tiene materias matriculadas."
+        return False, f"El estudiante no tiene materias matriculadas en el periodo '{periodo}'."
 
-    # Radicado: primeros 8 caracteres del id_matricula del primer registro del
-    # periodo (el más antiguo), en mayúsculas.
-    id_primer_registro = filas[0][0]
-    radicado = str(id_primer_registro)[:8].upper()
-    periodo_recibo = filas[0][4]
-    fecha_matricula = filas[0][5]
+    # Radicado: el del lote (V9) de ESTE periodo; el más reciente si hubo varios.
+    ids_lote = sorted({fila[6] for fila in filas if fila[6]})
+    radicado = None
+    fecha_recibo = filas[0][5]
+    if ids_lote:
+        lotes = _consulta(
+            "SELECT id_lote, radicado, fecha FROM matriculas_lote "
+            "WHERE id_lote = ANY(%s) ORDER BY fecha DESC",
+            (ids_lote,),
+        )
+        radicado = lotes[0][1]
+        fecha_recibo = lotes[0][2]
+    sin_lote = any(fila[6] is None for fila in filas)
 
     datos_tabla = [["Código", "Materia", "Créditos", "Periodo"]]
     total_creditos = 0
-    for id_matricula, id_materia, nombre_materia, creditos, periodo, fecha in filas:
+    for id_matricula, id_materia, nombre_materia, creditos, periodo_fila, fecha, id_lote in filas:
         total_creditos += creditos
-        datos_tabla.append([id_materia, nombre_materia, creditos, periodo])
+        datos_tabla.append([id_materia, nombre_materia, creditos, periodo_fila])
     datos_tabla.append(["", "TOTAL CRÉDITOS", total_creditos, ""])
 
     tabla = Table(datos_tabla, colWidths=[3*cm, 7*cm, 3*cm, 3*cm])
@@ -309,15 +335,26 @@ def generar_pdf_matricula(cedula):
         [
             f"<b>Estudiante:</b> {estudiante[0]} {estudiante[1]}",
             f"<b>Cédula:</b> {cedula}",
-            f"<b>Radicado:</b> {radicado}",
-            f"<b>Periodo:</b> {periodo_recibo}",
-            f"<b>Fecha de matrícula:</b> {fecha_matricula}",
+            f"<b>Radicado:</b> {radicado if radicado else 'Sin radicado'}",
+            f"<b>Periodo:</b> {periodo}",
+            f"<b>Fecha de matrícula:</b> {fecha_recibo}",
         ],
         estilos,
         color=VERDE,
     )
     contenido.append(Paragraph("Materias matriculadas", estilos["seccion"]))
     contenido.append(tabla)
+    if sin_lote:
+        contenido.append(Paragraph(
+            "Nota: una o más matrículas de este periodo son anteriores a los lotes "
+            "y no tienen radicado asignado.",
+            estilos["nota"],
+        ))
+    if radicado and len(ids_lote) > 1:
+        contenido.append(Paragraph(
+            "Nota: este periodo tiene matrículas de varios lotes; se muestra el radicado del lote más reciente.",
+            estilos["nota"],
+        ))
     contenido.append(_pie(estilos))
 
     archivo = f"Recibo_Matricula_{cedula}.pdf"

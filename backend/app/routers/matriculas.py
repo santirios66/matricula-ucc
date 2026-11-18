@@ -259,7 +259,8 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
     Valida rol, periodo vigente, que las materias pertenezcan al plan del
     programa del estudiante, cupos, duplicados, requisitos previos y el
     total de créditos del periodo (entre 6 y 19). Si algo falla, no se
-    guarda nada.
+    guarda nada. Cuando todo pasa, crea la cabecera del lote (V9) con su
+    radicado y todas las materias del carrito quedan con ese id_lote.
     """
     cedula = lote.cedula.strip()
     periodo = lote.periodo.strip()
@@ -459,7 +460,26 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                         detail="Requisitos previos sin aprobar: " + "; ".join(faltantes),
                     )
-            # 5. Inserta todas en una sola transacción
+            # 5. Cabecera del lote (V9): un radicado nuevo para este carrito,
+            # generado de un identificador nuevo (uuid), no de la primera fila
+            # del estudiante. Todas las materias del carrito quedan con ese
+            # id_lote; si algo falla después, el rollback la descarta también.
+            id_lote = str(uuid.uuid4())[:8]
+            radicado = uuid.uuid4().hex[:8].upper()
+            while True:
+                try:
+                    cur.execute(
+                        "INSERT INTO matriculas_lote (id_lote, radicado, cedula, periodo) "
+                        "VALUES (%s, %s, %s, %s)",
+                        (id_lote, radicado, cedula, periodo),
+                    )
+                    break
+                except psycopg2.errors.UniqueViolation:
+                    # id_lote o radicado repetido: casi imposible con uuid,
+                    # se regeneran ambos y se intenta de nuevo
+                    id_lote = str(uuid.uuid4())[:8]
+                    radicado = uuid.uuid4().hex[:8].upper()
+            # 5b. Inserta todas en una sola transacción, cada una con la cabecera
             creadas = []
             for id_materia in id_materias:
                 cur.execute(
@@ -470,8 +490,8 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                 id_matricula = str(uuid.uuid4())[:8]
                 try:
                     cur.execute(
-                        "INSERT INTO matriculas (id_matricula, cedula, id_materia, creditos, periodo, estado) "
-                        "VALUES (%s, %s, %s, %s, %s, %s)",
+                        "INSERT INTO matriculas (id_matricula, cedula, id_materia, creditos, periodo, estado, id_lote) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
                         (
                             id_matricula,
                             cedula,
@@ -479,6 +499,7 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                             creditos_materia,
                             periodo,
                             "Activa",
+                            id_lote,
                         ),
                     )
                 except psycopg2.errors.UniqueViolation:
@@ -503,6 +524,8 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
             "cedula": cedula,
             "periodo": periodo,
             "total_creditos": total_creditos,
+            "id_lote": id_lote,
+            "radicado": radicado,
             "matriculas": [
                 {
                     "id_matricula": fila[0],
