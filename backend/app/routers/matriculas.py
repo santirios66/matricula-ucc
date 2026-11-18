@@ -60,6 +60,34 @@ class MatriculaLoteCreate(BaseModel):
     id_materias: list[str] = Field(..., min_length=1)
 
 
+def _cruce_horario(filas_materias):
+    """Detecta si dos materias del carrito se cruzan en horario.
+
+    Recibe filas de materias con columnas (id_materia, nombre_curso, cupos,
+    creditos, dia, hora_inicio, hora_fin). Solo considera las materias que
+    tienen las tres columnas de horario definidas (las que no las tienen
+    quedan sin restricción de cruce). Devuelve None si no hay cruce, o el
+    mensaje de error 422 si lo hay.
+    """
+    con_horario = [
+        fila for fila in filas_materias
+        if fila[4] is not None and fila[5] is not None and fila[6] is not None
+    ]
+    for i in range(len(con_horario)):
+        for j in range(i + 1, len(con_horario)):
+            id_a, nom_a, _, _, dia_a, hi_a, hf_a = con_horario[i]
+            id_b, nom_b, _, _, dia_b, hi_b, hf_b = con_horario[j]
+            if dia_a != dia_b:
+                continue
+            # Solapamiento de intervalos: inicio_a < fin_b  y  inicio_b < fin_a
+            if hi_a < hf_b and hi_b < hf_a:
+                return (
+                    f"Cruce de horario: '{nom_a}' ({id_a}) y '{nom_b}' ({id_b}) "
+                    f"ambas el {dia_a} ({hi_a}-{hf_a} y {hi_b}-{hf_b})"
+                )
+    return None
+
+
 @router.get("/", status_code=status.HTTP_200_OK)
 def listar_matriculas(sesion: dict = Depends(autenticar)):
     """Devuelve las matrículas ordenadas por ID, filtradas por rol."""
@@ -364,26 +392,19 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                 (cedula, periodo),
             )
             cur.execute(
-                "SELECT id_materia, cupos, creditos, nombre_curso FROM materias "
-                "WHERE id_materia = ANY(%s) ORDER BY id_materia FOR UPDATE",
+                "SELECT id_materia, nombre_curso, cupos, creditos, dia, hora_inicio, hora_fin "
+                "FROM materias WHERE id_materia = ANY(%s) ORDER BY id_materia FOR UPDATE",
                 (id_materias,),
             )
+            filas_materias = cur.fetchall()
             # 3b. Créditos: materias existentes + SUM del periodo, todo en SQL
             cur.execute(
                 "SELECT COALESCE(SUM(creditos), 0) FROM matriculas WHERE cedula = %s AND periodo = %s",
                 (cedula, periodo),
             )
             suma_previa = int(cur.fetchone()[0])
-            cur.execute(
-                "SELECT COALESCE(SUM(creditos), 0) FROM materias WHERE id_materia = ANY(%s)",
-                (id_materias,),
-            )
-            suma_nuevas = int(cur.fetchone()[0])
-            cur.execute(
-                "SELECT COUNT(*) FROM materias WHERE id_materia = ANY(%s)",
-                (id_materias,),
-            )
-            encontradas = int(cur.fetchone()[0])
+            suma_nuevas = int(sum(fila[3] for fila in filas_materias))
+            encontradas = len(filas_materias)
             if encontradas != len(set(id_materias)):
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -398,6 +419,15 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                         f"({suma_previa} matriculados + {suma_nuevas} del carrito); "
                         "debe estar entre 6 y 19"
                     ),
+                )
+            # 3c. Cruce de horario (Parte 7B): dos materias del carrito no pueden
+            # coincidir el mismo día con horarios solapados. Se valida antes de
+            # insertar nada: si falla, el rollback descarta todo el lote.
+            mensaje_cruce = _cruce_horario(filas_materias)
+            if mensaje_cruce:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=mensaje_cruce,
                 )
             # 4. Duplicados contra la base (mismo periodo)
             cur.execute(
