@@ -195,7 +195,7 @@ function iniciarSesion(sesion){
   render();
 }
 $('#logout').onclick=()=>{
-  SESION=null;data={};errors={};
+  SESION=null;data={};errors={};planDe=null;
   cierraLogoMenu();
   crossfade([$('#app-workspace'),$('#app-aside')],[$('#login-screen')]);
   $('#session-greeting').textContent='';
@@ -257,11 +257,13 @@ function relatedLabel(key,id){
  return row ? `${id} · ${row.nombre_facultad||row.nombre_programa||row.nombre_curso||[row.nombre,row.apellidos].filter(Boolean).join(' ')}` : id;
 }
 function display(row,field){return field[4]?relatedLabel(field[4],row[field[0]]):row[field[0]];}
-function table(key,rows){const m=modules[key];return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
+function table(key,rows){const m=modules[key];const conPlan=key==='programas';
+ return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${conPlan?'<th scope="col">Plan de estudios</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
 
 // ====== Render principal ======
 function go(key){
   if(!SESION) return;
+  planDe=null; // reabrir Programas siempre muestra la lista, no un plan abierto
   if(key===current){render();return;}
   const origen=current;
   current=key;location.hash=key;
@@ -386,9 +388,12 @@ function vistaResumen(){
 }
 
 // ====== Catálogo (solo admin) ======
+// Plan de estudios abierto (drill-down dentro de Programas; estado solo en memoria)
+let planDe=null;
 async function vistaCatalogo(){
  const key=current, m=modules[key];
  if(!m){$('#view').innerHTML=vacio('◈','Pantalla no disponible','Vuelve al resumen y elige una sección del menú.');return;}
+ if(key==='programas'&&planDe){vistaPlanPrograma(planDe);return;}
  $('#refresh').hidden=false;
  $('#view').innerHTML=`<div id="franja-zone"></div><section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…"><span class="count" id="count"></span></div><div id="rows"></div></section>`;
  $('#new').onclick=openForm;$('#search').oninput=e=>renderRows(e.target.value);
@@ -406,6 +411,7 @@ function renderRows(query=''){
  const all=data[key], q=query.toLocaleLowerCase('es'), rows=all.filter(r=>modules[key].fields.some(f=>String(display(r,f)??'').toLocaleLowerCase('es').includes(q)));
  $('#count').textContent=`${rows.length} de ${all.length} registros`;
  area.innerHTML=rows.length?table(key,rows):(q?vacio('⌕','Sin coincidencias',`Ningún registro coincide con "${query}". Prueba con otro término.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
+ area.querySelectorAll('.btn-plan').forEach(b=>b.onclick=()=>{planDe=b.dataset.id;vistaPlanPrograma(b.dataset.id);});
 }
 function openForm(){
  const m=modules[current];$('#form').reset();$('#form-error').textContent='';$('#dialog-title').textContent=`Registrar ${m.singular}`;$('#dialog-eyebrow').textContent='NUEVO REGISTRO';$('#dialog-hint').textContent='Completa los datos. Los campos con * son obligatorios.';
@@ -436,6 +442,85 @@ $('#form').onsubmit=async e=>{
  finally{saving=false;$('#save').disabled=false;$('#save').textContent='Guardar registro';$('#cancel').disabled=false;$('#close').disabled=false;}
 };
 $('#dialog').addEventListener('cancel',e=>{if(saving)e.preventDefault();});$('#close').onclick=closeForm;$('#cancel').onclick=closeForm;
+
+// ====== Admin: Plan de estudios de un programa (se abre desde Programas) ======
+// Usa los endpoints de la Parte 6A: GET/POST /programas/{id}/plan y
+// PUT/DELETE /programas/{id}/plan/{id_materia} (solo Administrador).
+// Los cambios de plan no afectan matrículas, notas ni tareas ya guardadas.
+const SEMESTRES=[1,2,3,4,5,6,7,8,9,10];
+async function vistaPlanPrograma(idPrograma){
+ $('#refresh').hidden=false;
+ $('#view').innerHTML=vacio('⏳','Cargando plan de estudios','Un momento, consultamos las materias del programa.');
+ try{
+  await asegurarCatalogos();
+  if(current!=='programas'||planDe!==idPrograma)return;
+  const programa=(data.programas||[]).find(p=>p.id_programa===idPrograma);
+  const nombrePrograma=programa?programa.nombre_programa:idPrograma;
+  const plan=await apiAuth(`/programas/${encodeURIComponent(idPrograma)}/plan`);
+  if(current!=='programas'||planDe!==idPrograma)return;
+  const enPlan=new Set(plan.map(f=>f.id_materia));
+  const hayMaterias=Array.isArray(data.materias);
+  const fuera=hayMaterias?(data.materias||[]).filter(m=>!enPlan.has(m.id_materia)):[];
+  const obligatorias=plan.filter(f=>f.obligatoria).length;
+  const recarga=()=>vistaPlanPrograma(idPrograma);
+  const rutaMateria=id=>`/programas/${encodeURIComponent(idPrograma)}/plan/${encodeURIComponent(id)}`;
+  const item=f=>`<article class="plan-item" data-id="${esc(f.id_materia)}"><div class="plan-info"><strong>${esc(f.nombre_curso)}</strong><span class="tarea-meta"><span class="chip">${esc(f.id_materia)}</span><span class="chip chip-creditos">${f.creditos} créditos</span><span class="chip ${f.obligatoria?'chip-obligatoria':'chip-electiva'}">${f.obligatoria?'Obligatoria':'Electiva'}</span></span></div><div class="plan-acciones"><label class="plan-semestre-label">Semestre <select class="plan-semestre" data-id="${esc(f.id_materia)}" aria-label="Semestre de ${esc(f.nombre_curso)}">${SEMESTRES.map(n=>`<option value="${n}"${n===f.semestre?' selected':''}>${n}</option>`).join('')}</select></label><button type="button" class="secondary plan-tipo" data-id="${esc(f.id_materia)}" data-obligatoria="${f.obligatoria?'true':'false'}">${f.obligatoria?'Hacer electiva':'Hacer obligatoria'}</button><button type="button" class="secondary plan-quitar" data-id="${esc(f.id_materia)}" data-nombre="${esc(f.nombre_curso)}">Quitar ✕</button></div></article>`;
+  // Agrupadas por semestre (1 a 10): solo los semestres que tienen materias
+  const grupos=SEMESTRES.map(n=>({n,filas:plan.filter(f=>f.semestre===n)})).filter(g=>g.filas.length);
+  const lista=plan.length?grupos.map(g=>`<section class="plan-grupo"><h3>Semestre ${g.n}<span class="count">· ${g.filas.length} ${g.filas.length===1?'materia':'materias'}</span></h3>${g.filas.map(item).join('')}</section>`).join(''):vacio('▤','Este programa aún no tiene materias en su plan','Agrega la primera con el formulario "Agregar materia al plan" de abajo.');
+  const opciones=fuera.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
+  const formulario=hayMaterias
+   ?(fuera.length?`<div class="fields"><div><label for="plan-materia">Materia *</label><select id="plan-materia" required>${opciones}</select></div><div><label for="plan-semestre-nuevo">Semestre *</label><select id="plan-semestre-nuevo" required>${SEMESTRES.map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div><div><label for="plan-tipo-nuevo">Tipo</label><select id="plan-tipo-nuevo"><option value="true">Obligatoria</option><option value="false">Electiva</option></select></div></div><p id="plan-error" role="alert"></p><div class="form-actions"><button type="submit" id="plan-agregar">Agregar al plan</button></div>`
+   :vacio('▥','Todas las materias registradas ya están en el plan','Registra materias nuevas en la sección Materias para poder agregarlas aquí.'))
+   :vacio('⚠','No se pudieron cargar las materias','Pulsa Actualizar para reintentar la conexión con la API.');
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias en el plan',valor:plan.length},{etiqueta:'Obligatorias',valor:obligatorias},{etiqueta:'Electivas',valor:plan.length-obligatorias}])}<section class="panel"><div class="panel-top"><div><h2>Plan de estudios · ${esc(nombrePrograma)} (${esc(idPrograma)})</h2><p>Materias agrupadas por semestre. Quitar una materia no afecta las matrículas, notas ni tareas ya guardadas</p></div><button type="button" class="secondary" id="volver-programas">← Volver a Programas</button></div><div class="lista-plan" id="lista-plan">${lista}</div></section><section class="panel"><div class="panel-top"><div><h2>Agregar materia al plan</h2><p>Solo aparecen las materias registradas que aún no están en este plan</p></div></div><form id="form-plan-add" ${hayMaterias&&fuera.length?'':'hidden'}>${formulario}</form></section>`;
+  $('#volver-programas').onclick=()=>{planDe=null;vistaCatalogo();};
+  // Quitar del plan: si la API responde 409, el mensaje se muestra tal cual
+  // (dice qué materia del mismo plan depende de ella como requisito)
+  $('#view').querySelectorAll('.plan-quitar').forEach(b=>b.onclick=async()=>{
+   b.disabled=true;b.textContent='Quitando…';
+   try{
+    await apiAuth(rutaMateria(b.dataset.id),{method:'DELETE'});
+    notice(`La materia ${b.dataset.id} (${b.dataset.nombre}) salió del plan.`,true);
+    await recarga();
+   }catch(error){notice(error.message);b.disabled=false;b.textContent='Quitar ✕';}
+  });
+  // Cambiar semestre (PUT): al terminar se recarga el plan con la nueva agrupación
+  $('#view').querySelectorAll('.plan-semestre').forEach(s=>s.onchange=async()=>{
+   const id=s.dataset.id,nuevo=Number(s.value);
+   try{
+    await apiAuth(rutaMateria(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({semestre:nuevo})});
+    notice(`Semestre de ${id} actualizado a ${nuevo}.`,true);
+    await recarga();
+   }catch(error){notice(error.message);await recarga();}
+  });
+  // Cambiar obligatoria ↔ electiva (PUT)
+  $('#view').querySelectorAll('.plan-tipo').forEach(b=>b.onclick=async()=>{
+   const id=b.dataset.id,nueva=b.dataset.obligatoria!=='true';
+   b.disabled=true;
+   try{
+    await apiAuth(rutaMateria(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({obligatoria:nueva})});
+    notice(`${id} ahora es ${nueva?'obligatoria':'electiva'}.`,true);
+    await recarga();
+   }catch(error){notice(error.message);b.disabled=false;}
+  });
+  // Agregar materia al plan (POST): el 409 de duplicada muestra el mensaje pedido
+  $('#form-plan-add').onsubmit=async e=>{
+   e.preventDefault();
+   const err=$('#plan-error');err.textContent='';
+   const idMateria=$('#plan-materia')?.value, semestre=Number($('#plan-semestre-nuevo')?.value);
+   const obligatoria=$('#plan-tipo-nuevo')?.value==='true';
+   if(!idMateria||!semestre)return;
+   const btn=$('#plan-agregar');btn.disabled=true;btn.textContent='Agregando…';
+   try{
+    await apiAuth(`/programas/${encodeURIComponent(idPrograma)}/plan`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_materia:idMateria,semestre,obligatoria})});
+    notice(`Materia ${idMateria} agregada al plan de ${nombrePrograma}.`,true);
+    await recarga();
+   }catch(error){err.textContent=error.status===409?'Esa materia ya está en el plan':error.message;btn.disabled=false;btn.textContent='Agregar al plan';}
+  };
+  animaLlegada($('#view'));
+ }catch(error){$('#view').innerHTML=vacio('⚠','No se pudo cargar el plan de estudios',error.message);}
+}
 
 // ====== Estudiante: Matricular (carrito) ======
 let carrito=new Set();
@@ -780,5 +865,5 @@ $('#app-workspace').appendChild(btnTema);
 
 // ====== Refresh y navegación ======
 $('#refresh').onclick=async()=>{if(loading)return;loading=true;$('#refresh').disabled=true;notice('');await refreshCatalogos();loading=false;$('#refresh').disabled=false;render();};
-window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){const origen=current;current=destino;animarSeccion(destino,origen);}});
+window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){const origen=current;planDe=null;current=destino;animarSeccion(destino,origen);}});
 current='resumen';

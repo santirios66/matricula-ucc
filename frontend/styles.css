@@ -257,3 +257,28 @@ body.tema-oscuro .actividad-item strong{color:#e6f1f7}
 body.tema-oscuro .chip-momento{background:#3b2f12;color:#ecc76d}
 body.tema-oscuro .chip-calculada{background:#12414a;color:#7fd8cc}
 body.tema-oscuro .sugerido{color:#ecc76d}
+
+/* ====== Plan de estudios del programa en admin (se abre desde Programas) ====== */
+.lista-plan{display:grid;gap:20px;padding:0 26px 26px}
+.plan-grupo{display:grid;gap:10px}
+.plan-grupo h3{font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:#4a6274;margin:4px 0 2px}
+.plan-grupo h3 .count{font-size:11px;letter-spacing:0;text-transform:none;color:#5c7080;margin-left:6px}
+.plan-item{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:14px 18px;background:white;flex-wrap:wrap}
+.plan-info{display:flex;flex-direction:column;gap:8px;min-width:0}
+.plan-info strong{font-size:14.5px;color:#182f43}
+.plan-acciones{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.plan-acciones button{padding:8px 12px;font-size:13px}
+.plan-semestre-label{display:inline-flex;gap:8px;align-items:center;font-size:12px;font-weight:600;color:#4a6274}
+.plan-semestre{width:64px;padding:8px 10px;border:1px solid #cfdce4;border-radius:7px;background:white;color:#183448;font-size:13px}
+button.plan-quitar{color:#b02a37}
+#form-plan-add{padding:0 26px 26px}
+#form-plan-add .fields{margin-top:0}
+#plan-error{color:#b33232;font-size:13px;margin:10px 0 0}
+@media(max-width:760px){.plan-item{align-items:flex-start;flex-direction:column}.lista-plan{padding:0 18px 18px}#form-plan-add{padding:0 18px 18px}}
+body.tema-oscuro .plan-item{background:#133145;border-color:#28475a}
+body.tema-oscuro .plan-info strong{color:#e6f1f7}
+body.tema-oscuro .plan-grupo h3,body.tema-oscuro .plan-grupo h3 .count{color:#9db4c0}
+body.tema-oscuro .plan-semestre{background:#0f2a3b;border-color:#2a4a5e;color:#d9e6ee}
+body.tema-oscuro .plan-semestre-label{color:#9db4c0}
+body.tema-oscuro #plan-error{color:#ff9299}
+body.tema-oscuro button.plan-quitar{color:#ff9299}
