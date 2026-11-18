@@ -455,7 +455,9 @@ function openForm(idMateria){
  $('#fields').innerHTML=m.fields.map(([key,label,type,limit,source,optional])=>{
   let control;
    if(type==='select'){
-   if(key==='dia'||key==='hora_inicio'||key==='hora_fin'){
+    const rows=data[source]||[],id=modules[source].fields[0][0];
+    const val=fila?fila[key]:'';
+    if(key==='dia'||key==='hora_inicio'||key==='hora_fin'){
     let opcionesHtml='';
     if(key==='dia'){
      const dias=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
