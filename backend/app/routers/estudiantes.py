@@ -94,7 +94,8 @@ def materias_disponibles(cedula: str):
             # ni el resto de la facultad
             cur.execute(
                 "SELECT pe.id_materia, pe.semestre, pe.obligatoria, m.nombre_curso, "
-                "m.creditos, m.cupos, m.horario, m.id_profesor "
+                "m.creditos, m.cupos, m.horario, m.id_profesor, "
+                "m.dia, m.hora_inicio, m.hora_fin "
                 "FROM plan_estudios pe JOIN materias m ON m.id_materia = pe.id_materia "
                 "WHERE pe.id_programa = %s "
                 "ORDER BY pe.semestre, m.nombre_curso, pe.id_materia",
@@ -125,7 +126,7 @@ def materias_disponibles(cedula: str):
             )
             matriculadas = {id_materia for (id_materia,) in cur.fetchall()}
         respuesta = []
-        for id_materia, semestre, obligatoria, nombre_curso, creditos, cupos, horario, id_profesor in filas:
+        for id_materia, semestre, obligatoria, nombre_curso, creditos, cupos, horario, id_profesor, dia, hora_inicio, hora_fin in filas:
             definitiva = definitiva_por_materia.get(id_materia)
             if definitiva is not None and definitiva >= 3.0:
                 estado = "Aprobada"
@@ -145,6 +146,9 @@ def materias_disponibles(cedula: str):
                 "id_profesor": id_profesor,
                 "semestre": semestre,
                 "obligatoria": obligatoria,
+                "dia": dia,
+                "hora_inicio": hora_inicio,
+                "hora_fin": hora_fin,
                 "estado": estado,
                 "definitiva": definitiva,
             })

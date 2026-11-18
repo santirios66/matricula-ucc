@@ -530,7 +530,8 @@ async function vistaMatricular(){
  $('#view').innerHTML=vacio('⏳','Cargando materias','Un momento, consultamos el plan de estudios de tu programa.');
  try{
   const materias=await api(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/materias-disponibles`);
-  const opciones=materias.map(m=>`<label class="carrito-item"><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${m.creditos}"><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${m.creditos} créditos</span><span class="chip">${m.cupos} cupos</span><span class="chip">${esc(m.horario||'Sin horario')}</span><span class="chip chip-semestre">Semestre ${m.semestre}</span><span class="chip ${m.obligatoria?'chip-obligatoria':'chip-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span></span></span></label>`).join('');
+  const formatoHorario=m=>{if(m.dia&&m.hora_inicio&&m.hora_fin){const hi=String(m.hora_inicio).slice(0,5),hf=String(m.hora_fin).slice(0,5);return `${esc(m.dia)} ${hi}-${hf}`;}return 'Sin horario';};
+  const opciones=materias.map(m=>`<label class="carrito-item"><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${m.creditos}"><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${m.creditos} créditos</span><span class="chip">${m.cupos} cupos</span><span class="chip">${formatoHorario(m)}</span><span class="chip chip-semestre">Semestre ${m.semestre}</span><span class="chip ${m.obligatoria?'chip-obligatoria':'chip-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span></span></span></label>`).join('');
   $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel"><div class="panel-top"><div><h2>Materias de tu plan de estudios</h2><p>Marca las que quieres matricular en el periodo 2026-2, de las que corresponden a tu programa y semestre</p></div></div>${materias.length?`<div class="carrito">${opciones}</div>`:vacio('▥','Tu programa aún no tiene plan de estudios cargado','Cuando tu programa cargue su plan de estudios, las materias aparecerán aquí para armar tu matrícula.')}<div class="panel-top"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted">Debe quedar entre 6 y 19</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
   const checkboxes=[...$('#view').querySelectorAll('.carrito-item input')];
   const total=()=>checkboxes.filter(c=>c.checked).reduce((s,c)=>s+Number(c.dataset.creditos),0);
@@ -542,12 +543,24 @@ async function vistaMatricular(){
   };
   checkboxes.forEach(c=>c.onchange=()=>{c.checked?carrito.add(c.value):carrito.delete(c.value);pintaTotal();});
   $('#confirmar-carrito').onclick=async()=>{
-   const seleccion=checkboxes.filter(c=>c.checked).map(c=>c.value);
-   try{
-    const res=await apiAuth('/matriculas/lote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:SESION.id_persona,periodo:'2026-2',id_materias:seleccion})});
-    notice(`Matrícula confirmada: ${res.matriculas.length} materias, ${res.total_creditos} créditos.`,true);
-    carrito.clear();await vistaMatricular();
-   }catch(error){notice(mensajeRol(error));}
+    const seleccion=checkboxes.filter(c=>c.checked).map(c=>c.value);
+    // 7C: detectar cruce de horario antes de enviar
+    const seleccionadas=materias.filter(m=>seleccion.includes(m.id_materia));
+    const conHorario=seleccionadas.filter(m=>m.dia&&m.hora_inicio&&m.hora_fin);
+    for(let i=0;i<conHorario.length;i++){
+      for(let j=i+1;j<conHorario.length;j++){
+        const a=conHorario[i],b=conHorario[j];
+        if(a.dia===b.dia&&String(a.hora_inicio).slice(0,5)<String(b.hora_fin).slice(0,5)&&String(b.hora_inicio).slice(0,5)<String(a.hora_fin).slice(0,5)){
+          notice(`Cruce de horario: '${a.nombre_curso}' (${a.id_materia}) y '${b.nombre_curso}' (${b.id_materia}) el ${a.dia}. Desmarca una para continuar.`);
+          return;
+        }
+      }
+    }
+    try{
+     const res=await apiAuth('/matriculas/lote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:SESION.id_persona,periodo:'2026-2',id_materias:seleccion})});
+     notice(`Matrícula confirmada: ${res.matriculas.length} materias, ${res.total_creditos} créditos.`,true);
+     carrito.clear();await vistaMatricular();
+    }catch(error){notice(mensajeRol(error));}
   };
   pintaTotal();
   animaLlegada($('#view'));
