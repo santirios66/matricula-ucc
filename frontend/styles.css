@@ -409,3 +409,122 @@ body.tema-oscuro .grupo-codigo,body.tema-oscuro .grupo-cuenta{color:#8fa8b6}
 body.tema-oscuro .grupo-cuenta{background:#133145;border-color:#2a4a5e}
 body.tema-oscuro .ayuda-plan{color:#ecc76d}
 
+/* ====== Estudiante: tablero por semestre y zona de carrito ====== */
+.matricular-top{align-items:flex-start}
+.vista-switch{display:inline-flex;background:#eef3f6;border:1px solid #d7e4ea;border-radius:10px;padding:3px;gap:2px;flex:0 0 auto}
+.vista-switch button{background:transparent;color:#5c7080;padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.vista-switch button:hover{filter:none;background:#e3eef1;color:#183448}
+.vista-switch button.activo{background:#fff;color:#0f6b70;box-shadow:0 1px 3px rgba(16,44,64,.12)}
+.matricular-cuerpo{padding:0 26px 22px}
+.tablero-wrap{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:22px;align-items:start}
+.tablero-columnas{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(272px,300px);gap:20px;overflow-x:auto;padding:4px 4px 18px;align-items:start}
+.tablero-columna{display:grid;gap:0;align-content:start;min-width:0;border:1px solid #e0eaf0;border-radius:16px;background:#f7fafb;padding:0 11px 13px}
+.tablero-columna-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:13px 7px;border-bottom:1px solid #e3edf2;margin-bottom:13px}
+.tablero-columna-cab h3{margin:0;font-size:11.5px;letter-spacing:.9px;text-transform:uppercase;color:#3f5a6c}
+.tablero-columna-cab .count{font-size:10.5px;font-weight:600;color:#647b8b;background:#fff;border:1px solid #dde8ee;border-radius:20px;padding:2px 8px;white-space:nowrap}
+.tablero-cards{display:grid;gap:14px;align-content:start}
+.materia-card{position:relative;display:grid;gap:11px;border:1px solid #dbe6ec;border-left:4px solid #c9d6df;border-radius:13px;background:#fff;padding:15px 16px 14px;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease,background .15s ease;user-select:none;box-shadow:0 1px 2px rgba(16,44,64,.04)}
+.materia-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(16,44,64,.11)}
+.materia-card:focus-visible{outline:3px solid #e3ae48;outline-offset:3px}
+.materia-card.arrastrando{opacity:.55;transform:scale(.98)}
+.materia-card.estado-aprobada{border-left-color:#2E8B57;background:linear-gradient(180deg,#f1fbf5,#fff)}
+.materia-card.estado-matriculada{border-left-color:#0f8f96;background:linear-gradient(180deg,#eef9f8,#fff)}
+.materia-card.estado-disponible{border-left-color:#c9d6df}
+.materia-card.estado-bloqueada{border-left-color:#8a99a5;background:#f2f4f6;color:#6a7e8d}
+.materia-card.en-carrito{outline:2px solid var(--teal);outline-offset:-2px;box-shadow:0 6px 16px rgba(0,124,130,.16)}
+.materia-card.cruce{border-color:#c0392b;border-left-color:#c0392b;box-shadow:0 0 0 2px rgba(192,57,43,.2)}
+.materia-card-top{display:flex;align-items:center;gap:8px}
+.materia-card-creditos{margin-left:auto;font-size:11.5px;font-weight:700;color:#5c7080;white-space:nowrap}
+.materia-card-marca{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--teal);color:#fff;font-size:12px;font-weight:800;opacity:0;transform:scale(.65);transition:opacity .15s ease,transform .15s ease}
+.materia-card.en-carrito .materia-card-marca{opacity:1;transform:none}
+.materia-card-nombre{font-size:14.5px;line-height:1.35;color:#152c3f;font-weight:700;overflow-wrap:anywhere}
+.materia-card-datos{display:grid;gap:7px}
+.materia-dato{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px;align-items:baseline;font-size:12px}
+.materia-dato-et{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8094a1}
+.materia-dato-val{color:#365164;line-height:1.4;overflow-wrap:anywhere}
+.dato-obligatoria{color:#5b3fa8;font-weight:600}
+.dato-electiva{color:#9a6b0a;font-weight:600}
+.materia-card-pie{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid #ebf1f4;padding-top:10px}
+.materia-card-estado{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:11.5px;font-weight:600;color:#5c7080;min-width:0}
+.materia-card-cta{font-size:10.5px;font-weight:700;letter-spacing:.3px;color:#0f6b70;background:#eef8f7;border:1px solid #cfeae7;border-radius:20px;padding:3px 9px;white-space:nowrap}
+.materia-card.en-carrito .materia-card-cta{background:var(--teal);border-color:var(--teal);color:#fff}
+.estado-punto{width:8px;height:8px;border-radius:50%;background:#a9bac5;display:inline-block;flex:0 0 auto}
+.estado-aprobada .estado-punto{background:#2E8B57}
+.estado-aprobada .materia-card-estado{color:#1f7a44}
+.estado-matriculada .estado-punto{background:#0f8f96}
+.estado-matriculada .materia-card-estado{color:#0f6b70}
+.estado-bloqueada .estado-punto{background:#8a99a5}
+.candado{font-size:13px;line-height:1}
+.requisito-falta{flex-basis:100%;padding-left:14px;color:#b02a37;font-size:11px;font-weight:600}
+.chip-codigo{background:#e8eef3;color:#22577a;font-weight:700}
+.chip-estado-aprobada{background:#e4f5ea;color:#1f7a44}
+.chip-estado-matriculada{background:#eaf5f3;color:#1f6b5e}
+.chip-estado-disponible{background:#eef3f6;color:#4a6274}
+.chip-estado-bloqueada{background:#e9edf0;color:#5c7080}
+.carrito-zona{position:sticky;top:16px;border:1.5px dashed #b9d5d2;border-radius:14px;background:#f6fbfb;padding:16px;display:grid;gap:12px;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}
+.carrito-zona.drop-preparado{border-color:#0f8f96}
+.carrito-zona.drop-activo{border-color:#0f8f96;background:#e8f7f5;box-shadow:0 0 0 3px rgba(15,143,150,.18)}
+.carrito-zona-cab{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.carrito-zona-cab h3{margin:0;font-size:14px;color:#183448}
+.carrito-cuenta{display:grid;place-items:center;min-width:24px;height:24px;padding:0 7px;border-radius:20px;background:var(--teal);color:#fff;font-size:12px;font-weight:700}
+.carrito-zona-lista{display:grid;gap:8px;max-height:340px;overflow:auto}
+.carrito-vacio{display:grid;gap:3px;font-size:12px;color:#718391;margin:0;line-height:1.5;padding:8px 4px}
+.carrito-vacio strong{font-size:12.5px;font-weight:600;color:#4a6274}
+.carrito-mini{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;background:#fff;border:1px solid #d7e4ea;border-radius:10px;padding:11px 12px}
+.carrito-mini-info{display:grid;gap:4px;min-width:0}
+.carrito-mini-info .chip{justify-self:start}
+.carrito-mini-info strong{font-size:12.5px;color:#183448;line-height:1.35}
+.carrito-mini-meta{font-size:11px;color:#5c7080}
+.carrito-quitar{width:26px;height:26px;padding:0;border-radius:8px;background:#fdeeee;color:#b02a37;font-size:12px;font-weight:700;line-height:1}
+.carrito-quitar:hover{filter:none;background:#b02a37;color:#fff}
+.carrito-pista{font-size:11px;color:#718391;margin:0;line-height:1.5;border-top:1px dashed #d7e4ea;padding-top:8px}
+.matricular-pie{border-top:1px solid var(--line);flex-wrap:wrap}
+.carrito-item.cruce,.carrito-item:has(input:checked).cruce{border-color:#c0392b;box-shadow:0 0 0 2px rgba(192,57,43,.18)}
+
+@media(max-width:1100px){.tablero-wrap{grid-template-columns:1fr}.carrito-zona{position:static;order:-1;max-height:none}.carrito-zona-lista{max-height:220px}}
+@media(max-width:760px){.matricular-top{align-items:flex-start;flex-direction:column}.matricular-cuerpo{padding:0 18px 18px}.tablero-columnas{grid-auto-columns:minmax(250px,280px)}}
+
+body.tema-oscuro .vista-switch{background:#0f2a3b;border-color:#2a4a5e}
+body.tema-oscuro .vista-switch button{color:#9db4c0}
+body.tema-oscuro .vista-switch button:hover{background:#1c3d52;color:#e6f1f7}
+body.tema-oscuro .vista-switch button.activo{background:#1c3d52;color:#8ce4d8;box-shadow:none}
+body.tema-oscuro .tablero-columna{background:#0e2837;border-color:#23414f}
+body.tema-oscuro .tablero-columna-cab{border-bottom-color:#23414f}
+body.tema-oscuro .tablero-columna-cab h3{color:#9db4c0}
+body.tema-oscuro .tablero-columna-cab .count{background:#133145;border-color:#2a4a5e;color:#9db4c0}
+body.tema-oscuro .materia-card{background:#133145;border-color:#28475a;border-left-color:#3a5a6d;box-shadow:none}
+body.tema-oscuro .materia-card.estado-aprobada{background:linear-gradient(180deg,#12352a,#133145);border-left-color:#5fce8f}
+body.tema-oscuro .materia-card.estado-matriculada{background:linear-gradient(180deg,#12414a,#133145);border-left-color:#4fc3c9}
+body.tema-oscuro .materia-card.estado-disponible{border-left-color:#3a5a6d}
+body.tema-oscuro .materia-card.estado-bloqueada{background:#102a38;border-left-color:#5c7484;color:#9db4c0}
+body.tema-oscuro .materia-card.en-carrito{outline-color:#4fc3c9;box-shadow:0 6px 16px rgba(0,0,0,.3)}
+body.tema-oscuro .materia-card.cruce{border-color:#ff9299;border-left-color:#ff9299;box-shadow:0 0 0 2px rgba(255,146,153,.24)}
+body.tema-oscuro .materia-card-nombre{color:#e6f1f7}
+body.tema-oscuro .materia-card-creditos{color:#9db4c0}
+body.tema-oscuro .materia-dato-et{color:#7e97a6}
+body.tema-oscuro .materia-dato-val{color:#c3d5e0}
+body.tema-oscuro .dato-obligatoria{color:#c3aefc}
+body.tema-oscuro .dato-electiva{color:#ecc76d}
+body.tema-oscuro .materia-card-pie{border-top-color:#23414f}
+body.tema-oscuro .materia-card-estado{color:#9db4c0}
+body.tema-oscuro .estado-aprobada .materia-card-estado{color:#8fd8b4}
+body.tema-oscuro .estado-matriculada .materia-card-estado{color:#7fd8cc}
+body.tema-oscuro .materia-card-cta{background:#12414a;border-color:#2a5a60;color:#8ce4d8}
+body.tema-oscuro .materia-card.en-carrito .materia-card-cta{background:#0f8f96;border-color:#0f8f96;color:#fff}
+body.tema-oscuro .requisito-falta{color:#ff9299}
+body.tema-oscuro .chip-codigo{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .chip-estado-aprobada{background:#12352a;color:#8fd8b4}
+body.tema-oscuro .chip-estado-matriculada{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .chip-estado-disponible{background:#1c3d52;color:#a9c2cf}
+body.tema-oscuro .chip-estado-bloqueada{background:#1c3d52;color:#8fa8b6}
+body.tema-oscuro .carrito-zona{background:#102a38;border-color:#2a4a5e}
+body.tema-oscuro .carrito-zona.drop-activo{background:#12414a;border-color:#4fc3c9;box-shadow:0 0 0 3px rgba(79,195,201,.18)}
+body.tema-oscuro .carrito-zona-cab h3,body.tema-oscuro .carrito-mini-info strong{color:#e6f1f7}
+body.tema-oscuro .carrito-mini{background:#133145;border-color:#28475a}
+body.tema-oscuro .carrito-mini-meta,body.tema-oscuro .carrito-vacio,body.tema-oscuro .carrito-pista{color:#8fa8b6}
+body.tema-oscuro .carrito-vacio strong{color:#c3d5e0}
+body.tema-oscuro .carrito-pista{border-top-color:#23414f}
+body.tema-oscuro .carrito-quitar{background:#3b1219;color:#ff9299}
+body.tema-oscuro .carrito-quitar:hover{background:#b02a37;color:#fff}
+body.tema-oscuro .matricular-pie{border-top-color:#23414f}
+body.tema-oscuro .carrito-item.cruce,body.tema-oscuro .carrito-item:has(input:checked).cruce{border-color:#ff9299;box-shadow:0 0 0 2px rgba(255,146,153,.2)}
