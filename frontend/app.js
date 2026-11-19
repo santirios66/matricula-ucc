@@ -248,7 +248,7 @@ const modules = {
  estudiantes:{title:'Estudiantes',singular:'estudiante',icon:'♙',description:'Consulta y registra los estudiantes de la comunidad universitaria.',fields:[['id_estudiante','Cédula','text',20],['nombre','Nombres','text',60],['apellidos','Apellidos','text',60],['correo','Correo electrónico','email',100],['telefono','Teléfono','tel',20,null,true],['semestre','Semestre','number',1],['id_programa','Programa','select',null,'programas']]},
  profesores:{title:'Profesores',singular:'profesor',icon:'♧',description:'Organiza el equipo docente y sus datos de identificación.',fields:[['id_profesor','ID del profesor','text',20],['nombre','Nombres','text',60],['apellidos','Apellidos','text',60]]},
  facultades:{title:'Facultades',singular:'facultad',icon:'▦',description:'Administra las facultades que organizan la oferta académica.',fields:[['id_facultad','Código','text',10],['nombre_facultad','Nombre de la facultad','text',100]]},
- programas:{title:'Programas',singular:'programa',icon:'▤',description:'Conecta cada programa académico con su facultad.',fields:[['id_programa','Código','text',10],['nombre_programa','Nombre del programa','text',100],['id_facultad','Facultad','select',null,'facultades']]},
+ programas:{title:'Programas',singular:'programa',icon:'▤',description:'Conecta cada programa académico con su facultad.',fields:[['id_programa','Código','text',10],['nombre_programa','Nombre del programa','text',100],['id_facultad','Facultad','select',null,'facultades']],formOrder:['id_facultad','id_programa','nombre_programa']},
  materias:{title:'Materias',singular:'materia',icon:'▥',description:'Gestiona la oferta de cursos, sus horarios y profesores.',fields:[
     ['id_materia','Código','text',10],
     ['nombre_curso','Nombre del curso','text',100],
@@ -273,8 +273,36 @@ function horarioTexto(row){
  if(row.horario)return `<span class="chip-horario chip-horario-texto">${esc(row.horario)}</span>`;
  return '<span class="sin-horario">—</span>';
 }
-function table(key,rows){const m=modules[key];const conPlan=key==='programas';const conAcciones=key==='materias';const esMaterias=key==='materias';const campos=esMaterias?m.fields.filter(f=>!['dia','hora_inicio','hora_fin','horario'].includes(f[0])):m.fields;
- return `<div class="table-wrap"><table><thead><tr>${campos.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${esMaterias?'<th scope="col">Horario</th>':''}${conPlan?'<th scope="col">Plan de estudios</th>':''}${conAcciones?'<th scope="col">Acciones</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${campos.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${esMaterias?`<td>${horarioTexto(row)}</td>`:''}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}${conAcciones?`<td class="acciones"><button type="button" class="btn-icono btn-editar" data-id="${esc(row.id_materia)}" title="Editar ${esc(row.nombre_curso)}" aria-label="Editar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="btn-icono btn-icono-peligro btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}" title="Eliminar ${esc(row.nombre_curso)}" aria-label="Eliminar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
+function cabeceraTabla(key,campos){
+ const esMaterias=key==='materias',conPlan=key==='programas';
+ return `<tr>${campos.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${esMaterias?'<th scope="col">Horario</th>':''}${conPlan?'<th scope="col">Plan de estudios</th>':''}${esMaterias?'<th scope="col">Acciones</th>':''}</tr>`;
+}
+function celdasFila(key,row,campos){
+ const esMaterias=key==='materias',conPlan=key==='programas';
+ const horario=esMaterias?`<td>${horarioTexto(row)}</td>`:'';
+ const plan=conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:'';
+ const acciones=esMaterias?`<td class="acciones"><button type="button" class="btn-icono btn-editar" data-id="${esc(row.id_materia)}" title="Editar ${esc(row.nombre_curso)}" aria-label="Editar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="btn-icono btn-icono-peligro btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}" title="Eliminar ${esc(row.nombre_curso)}" aria-label="Eliminar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`:'';
+ return `<tr>${campos.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${horario}${plan}${acciones}</tr>`;
+}
+function table(key,rows){
+ const m=modules[key],esMaterias=key==='materias';
+ const campos=esMaterias?m.fields.filter(f=>!['dia','hora_inicio','hora_fin','horario'].includes(f[0])):m.fields;
+ return `<div class="table-wrap"><table><thead>${cabeceraTabla(key,campos)}</thead><tbody>${rows.map(row=>celdasFila(key,row,campos)).join('')}</tbody></table></div>`;
+}
+// Programas: una tabla con un encabezado por facultad y sus programas debajo.
+function tableProgramas(rows){
+ const campos=modules.programas.fields.filter(f=>f[0]!=='id_facultad');
+ const grupos=new Map();
+ rows.forEach(row=>{const id=row.id_facultad||'';if(!grupos.has(id))grupos.set(id,[]);grupos.get(id).push(row);});
+ const facultades=data.facultades||[];
+ const bloques=[...grupos.entries()].sort(([a],[b])=>String(a).localeCompare(String(b),'es')).map(([id,filas])=>{
+  const f=facultades.find(x=>x.id_facultad===id);
+  const nombre=f?.nombre_facultad||'Sin facultad';
+  const titulo=/^facultad\b/i.test(nombre)?nombre:`Facultad de ${nombre}`;
+  return `<tbody class="grupo-facultad"><tr class="grupo-facultad-fila"><th colspan="${campos.length+1}" scope="colgroup"><div class="grupo-contenido"><span class="grupo-icono" aria-hidden="true">▦</span><span class="grupo-titulo">${esc(titulo)}</span><span class="grupo-codigo">· ${esc(id)}</span><span class="grupo-cuenta">${filas.length} ${filas.length===1?'programa':'programas'}</span></div></th></tr>${filas.map(row=>celdasFila('programas',row,campos)).join('')}</tbody>`;
+ }).join('');
+ return `<div class="table-wrap"><table class="tabla-programas"><thead>${cabeceraTabla('programas',campos)}</thead>${bloques}</table></div>`;
+}
 
 // ====== Render principal ======
 function go(key){
@@ -413,8 +441,11 @@ async function vistaCatalogo(){
  if(!m){$('#view').innerHTML=vacio('◈','Pantalla no disponible','Vuelve al resumen y elige una sección del menú.');return;}
  if(key==='programas'&&planDe){vistaPlanPrograma(planDe);return;}
  $('#refresh').hidden=false;
- $('#view').innerHTML=`<div id="franja-zone"></div><section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…"><span class="count" id="count"></span></div><div id="rows"></div></section>`;
- $('#new').onclick=()=>openForm();$('#search').oninput=e=>renderRows(e.target.value);
+ const conFiltro=key==='programas'||key==='materias';
+ $('#view').innerHTML=`<div id="franja-zone"></div><section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…">${conFiltro?`<label class="filtro-facultad" for="filtro-facultad"><span>Facultad</span><select id="filtro-facultad" aria-label="Filtrar por facultad"><option value="">Todas las facultades</option></select></label>`:''}<span class="count" id="count"></span></div><div id="rows"></div></section>`;
+ $('#new').onclick=()=>openForm();
+ $('#search').oninput=e=>renderRows(e.target.value);
+ if(conFiltro)$('#filtro-facultad').onchange=()=>renderRows();
  renderRows();
  await asegurarCatalogos();
  if(current!==key) return;
@@ -422,13 +453,29 @@ async function vistaCatalogo(){
  renderRows();
  animaLlegada($('#rows'));
 }
-function renderRows(query=''){
+// Rellena el filtro con las facultades cargadas, conservando la opción elegida.
+function pintarFiltroFacultad(){
+ const sel=$('#filtro-facultad');if(!sel)return;
+ const actual=sel.value;
+ const opciones=(data.facultades||[]).slice().sort((a,b)=>String(a.id_facultad).localeCompare(String(b.id_facultad),'es')).map(f=>`<option value="${esc(f.id_facultad)}">${esc(f.id_facultad)} · ${esc(f.nombre_facultad)}</option>`).join('');
+ sel.innerHTML=`<option value="">Todas las facultades</option>${opciones}`;
+ if(actual&&[...sel.options].some(o=>o.value===actual))sel.value=actual;
+}
+function renderRows(query){
  const key=current, area=$('#rows');if(!area)return;
+ if(query===undefined)query=$('#search')?.value??'';
  if(errors[key]){area.innerHTML=vacio('⚠','No se pudieron cargar los datos','Pulsa Actualizar para reintentar la conexión con la API.');return;}
  if(!data[key]){area.innerHTML=vacio('⏳','Cargando registros','Un momento, consultamos los datos del sistema académico.');return;}
- const all=data[key], q=query.toLocaleLowerCase('es'), rows=all.filter(r=>modules[key].fields.some(f=>String(display(r,f)??'').toLocaleLowerCase('es').includes(q)));
+ pintarFiltroFacultad();
+ const all=data[key], q=String(query).toLocaleLowerCase('es');
+ const fac=$('#filtro-facultad')?.value||'';
+ const rows=all.filter(r=>{
+  const coincide=modules[key].fields.some(f=>String(display(r,f)??'').toLocaleLowerCase('es').includes(q));
+  return coincide&&(!fac||String(r.id_facultad||'')===fac);
+ });
  $('#count').textContent=`${rows.length} de ${all.length} registros`;
- area.innerHTML=rows.length?table(key,rows):(q?vacio('⌕','Sin coincidencias',`Ningún registro coincide con "${query}". Prueba con otro término.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
+ const detalle=q&&fac?`la búsqueda "${query}" en la facultad elegida`:fac?'la facultad elegida':`la búsqueda "${query}"`;
+ area.innerHTML=rows.length?(key==='programas'?tableProgramas(rows):table(key,rows)):((q||fac)?vacio('⌕','Sin coincidencias',`Ningún registro coincide con ${detalle}. Prueba con otro filtro.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
  area.querySelectorAll('.btn-plan').forEach(b=>b.onclick=()=>{planDe=b.dataset.id;vistaPlanPrograma(b.dataset.id);});
   area.querySelectorAll('.btn-editar').forEach(b=>b.onclick=async()=>{
     try{
@@ -534,7 +581,9 @@ function openForm(idMateria){
  }
  const esMaterias=current==='materias';
  const camposHorario=['dia','hora_inicio','hora_fin','horario'];
- $('#fields').innerHTML=m.fields.map(([key,label,type,limit,source,optional])=>{
+ // En Programas la facultad va primero: es la decisión que ordena el resto.
+ const camposFormulario=m.formOrder?m.formOrder.map(k=>m.fields.find(f=>f[0]===k)).filter(Boolean):m.fields;
+ $('#fields').innerHTML=camposFormulario.map(([key,label,type,limit,source,optional])=>{
   if(esMaterias&&camposHorario.includes(key))return '';
   let control;
   if(type==='select'){
@@ -603,12 +652,20 @@ async function vistaPlanPrograma(idPrograma){
   // Agrupadas por semestre (1 a 10): solo los semestres que tienen materias
   const grupos=SEMESTRES.map(n=>({n,filas:plan.filter(f=>f.semestre===n)})).filter(g=>g.filas.length);
   const lista=plan.length?grupos.map(g=>`<section class="plan-grupo"><h3>Semestre ${g.n}<span class="count">· ${g.filas.length} ${g.filas.length===1?'materia':'materias'}</span></h3>${g.filas.map(item).join('')}</section>`).join(''):vacio('▤','Este programa aún no tiene materias en su plan','Agrega la primera con el formulario "Agregar materia al plan" de abajo.');
-  const opciones=fuera.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
+  const facultadInicial=programa?.id_facultad||'';
+  const facultades=data.facultades||[];
+  const facultadElegida=facultades.some(f=>f.id_facultad===facultadInicial)?facultadInicial:(facultades[0]?.id_facultad||facultadInicial);
+  const opcionesFacultad=facultades.length
+   ?facultades.map(f=>`<option value="${esc(f.id_facultad)}"${f.id_facultad===facultadElegida?' selected':''}>${esc(relatedLabel('facultades',f.id_facultad))}</option>`).join('')
+   :`<option value="${esc(facultadInicial)}">${esc(facultadInicial||'Sin facultades registradas')}</option>`;
+  const opcionesMateria=idFacultad=>fuera.filter(m=>m.id_facultad===idFacultad).map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
+  const opciones=opcionesMateria(facultadElegida);
+  const sinMaterias=!opciones;
   const formulario=hayMaterias
-   ?(fuera.length?`<div class="fields"><div><label for="plan-materia">Materia *</label><select id="plan-materia" required>${opciones}</select></div><div><label for="plan-semestre-nuevo">Semestre *</label><select id="plan-semestre-nuevo" required>${SEMESTRES.map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div><div><label for="plan-tipo-nuevo">Tipo</label><select id="plan-tipo-nuevo"><option value="true">Obligatoria</option><option value="false">Electiva</option></select></div></div><p id="plan-error" role="alert"></p><div class="form-actions"><button type="submit" id="plan-agregar">Agregar al plan</button></div>`
+   ?(fuera.length?`<div class="fields"><div><label for="plan-facultad">Facultad *</label><select id="plan-facultad" required>${opcionesFacultad}</select></div><div><label for="plan-materia">Materia *</label><select id="plan-materia" required>${opciones||'<option value="">No hay materias disponibles en esta facultad</option>'}</select><p class="ayuda-plan" id="plan-sin-materias"${sinMaterias?'':' hidden'}>Todas las materias de esta facultad ya están en el plan.</p></div><div><label for="plan-semestre-nuevo">Semestre *</label><select id="plan-semestre-nuevo" required>${SEMESTRES.map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div><div><label for="plan-tipo-nuevo">Tipo</label><select id="plan-tipo-nuevo"><option value="true">Obligatoria</option><option value="false">Electiva</option></select></div></div><p id="plan-error" role="alert"></p><div class="form-actions"><button type="submit" id="plan-agregar"${sinMaterias?' disabled':''}>Agregar al plan</button></div>`
    :vacio('▥','Todas las materias registradas ya están en el plan','Registra materias nuevas en la sección Materias para poder agregarlas aquí.'))
    :vacio('⚠','No se pudieron cargar las materias','Pulsa Actualizar para reintentar la conexión con la API.');
-  $('#view').innerHTML=`${franja([{etiqueta:'Materias en el plan',valor:plan.length},{etiqueta:'Obligatorias',valor:obligatorias},{etiqueta:'Electivas',valor:plan.length-obligatorias}])}<section class="panel"><div class="panel-top"><div><h2>Plan de estudios · ${esc(nombrePrograma)} (${esc(idPrograma)})</h2><p>Materias agrupadas por semestre. Quitar una materia no afecta las matrículas, notas ni tareas ya guardadas</p></div><button type="button" class="secondary" id="volver-programas">← Volver a Programas</button></div><div class="lista-plan" id="lista-plan">${lista}</div></section><section class="panel"><div class="panel-top"><div><h2>Agregar materia al plan</h2><p>Solo aparecen las materias registradas que aún no están en este plan</p></div></div><form id="form-plan-add" ${hayMaterias&&fuera.length?'':'hidden'}>${formulario}</form></section>`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias en el plan',valor:plan.length},{etiqueta:'Obligatorias',valor:obligatorias},{etiqueta:'Electivas',valor:plan.length-obligatorias}])}<section class="panel"><div class="panel-top"><div><h2>Plan de estudios · ${esc(nombrePrograma)} (${esc(idPrograma)})</h2><p>Materias agrupadas por semestre. Quitar una materia no afecta las matrículas, notas ni tareas ya guardadas</p></div><button type="button" class="secondary" id="volver-programas">← Volver a Programas</button></div><div class="lista-plan" id="lista-plan">${lista}</div></section><section class="panel"><div class="panel-top"><div><h2>Agregar materia al plan</h2><p>Elige la facultad y solo verás sus materias que aún no están en este plan</p></div></div><form id="form-plan-add" ${hayMaterias&&fuera.length?'':'hidden'}>${formulario}</form></section>`;
   $('#volver-programas').onclick=()=>{planDe=null;vistaCatalogo();};
   // Quitar del plan: si la API responde 409, el mensaje se muestra tal cual
   // (dice qué materia del mismo plan depende de ella como requisito)
@@ -639,6 +696,16 @@ async function vistaPlanPrograma(idPrograma){
     await recarga();
    }catch(error){notice(error.message);b.disabled=false;}
   });
+  // La facultad elegida filtra las materias que todavía pueden entrar al plan
+  const selectorFacultad=$('#plan-facultad');
+  if(selectorFacultad)selectorFacultad.onchange=()=>{
+   const lista=fuera.filter(m=>m.id_facultad===selectorFacultad.value);
+   const selectorMateria=$('#plan-materia');
+   selectorMateria.innerHTML=lista.length?opcionesMateria(selectorFacultad.value):'<option value="">No hay materias disponibles en esta facultad</option>';
+   const aviso=$('#plan-sin-materias');if(aviso)aviso.hidden=lista.length>0;
+   const btn=$('#plan-agregar');if(btn)btn.disabled=!lista.length;
+   const err=$('#plan-error');if(err)err.textContent='';
+  };
   // Agregar materia al plan (POST): el 409 de duplicada muestra el mensaje pedido
   $('#form-plan-add').onsubmit=async e=>{
    e.preventDefault();

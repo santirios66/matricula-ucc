@@ -387,3 +387,25 @@ body.tema-oscuro .horario-linea{background:#1c3d52}
 body.tema-oscuro .chip-horario{background:#12414a;color:#7fd8cc}
 body.tema-oscuro .chip-horario-texto{background:#1c3d52;color:#a9c2cf}
 body.tema-oscuro .sin-horario{color:#64818f}
+
+/* ====== Filtros y agrupacion por facultad (Programas y Materias) ====== */
+.toolbar .filtro-facultad{display:flex;align-items:center;gap:8px;font-size:12px;color:#5c7080;font-weight:600}
+.filtro-facultad select{min-width:190px;max-width:250px;padding:10px 12px;border:1px solid #cfdce4;border-radius:8px;background:white;color:#183448;font-size:13px}
+.grupo-facultad-fila th{background:#eef7f7;border-top:1px solid var(--line);padding:12px 18px;white-space:normal}
+.grupo-contenido{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.grupo-icono{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;background:#dff1ef;color:#0f6b70;font-size:12px}
+.grupo-titulo{font-size:13px;font-weight:700;color:#144d52;letter-spacing:0}
+.grupo-codigo{font-size:11.5px;font-weight:700;color:#5c7080}
+.grupo-cuenta{margin-left:auto;font-size:11px;font-weight:600;color:#5c7080;background:#fff;border:1px solid #d7e4ea;border-radius:20px;padding:2px 9px}
+.tabla-programas .grupo-facultad-fila:hover{background:transparent}
+.ayuda-plan{font-size:11.5px;color:#9a6b0a;margin:6px 0 0;font-weight:600}
+
+body.tema-oscuro .filtro-facultad{color:#9db4c0}
+body.tema-oscuro .filtro-facultad select{background:#0f2a3b;border-color:#2a4a5e;color:#d9e6ee}
+body.tema-oscuro .grupo-facultad-fila th{background:#0f2a3b;border-top-color:#23414f}
+body.tema-oscuro .grupo-icono{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .grupo-titulo{color:#c3d5e0}
+body.tema-oscuro .grupo-codigo,body.tema-oscuro .grupo-cuenta{color:#8fa8b6}
+body.tema-oscuro .grupo-cuenta{background:#133145;border-color:#2a4a5e}
+body.tema-oscuro .ayuda-plan{color:#ecc76d}
+
