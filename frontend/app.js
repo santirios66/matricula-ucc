@@ -267,8 +267,14 @@ function relatedLabel(key,id){
  return row ? `${id} · ${row.nombre_facultad||row.nombre_programa||row.nombre_curso||[row.nombre,row.apellidos].filter(Boolean).join(' ')}` : id;
 }
 function display(row,field){return field[4]?relatedLabel(field[4],row[field[0]]):row[field[0]];}
-function table(key,rows){const m=modules[key];const conPlan=key==='programas';const conAcciones=key==='materias';
- return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${conPlan?'<th scope="col">Plan de estudios</th>':''}${conAcciones?'<th scope="col">Acciones</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}${conAcciones?`<td class="acciones"><button type="button" class="btn-icono btn-editar" data-id="${esc(row.id_materia)}" title="Editar ${esc(row.nombre_curso)}" aria-label="Editar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="btn-icono btn-icono-peligro btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}" title="Eliminar ${esc(row.nombre_curso)}" aria-label="Eliminar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
+function horarioTexto(row){
+ const hi=String(row.hora_inicio||'').slice(0,5),hf=String(row.hora_fin||'').slice(0,5);
+ if(row.dia&&hi&&hf)return `<span class="chip-horario">${esc(row.dia)} ${hi}–${hf}</span>`;
+ if(row.horario)return `<span class="chip-horario chip-horario-texto">${esc(row.horario)}</span>`;
+ return '<span class="sin-horario">—</span>';
+}
+function table(key,rows){const m=modules[key];const conPlan=key==='programas';const conAcciones=key==='materias';const esMaterias=key==='materias';const campos=esMaterias?m.fields.filter(f=>!['dia','hora_inicio','hora_fin','horario'].includes(f[0])):m.fields;
+ return `<div class="table-wrap"><table><thead><tr>${campos.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${esMaterias?'<th scope="col">Horario</th>':''}${conPlan?'<th scope="col">Plan de estudios</th>':''}${conAcciones?'<th scope="col">Acciones</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${campos.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${esMaterias?`<td>${horarioTexto(row)}</td>`:''}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}${conAcciones?`<td class="acciones"><button type="button" class="btn-icono btn-editar" data-id="${esc(row.id_materia)}" title="Editar ${esc(row.nombre_curso)}" aria-label="Editar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="btn-icono btn-icono-peligro btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}" title="Eliminar ${esc(row.nombre_curso)}" aria-label="Eliminar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
 
 // ====== Render principal ======
 function go(key){
@@ -440,6 +446,79 @@ function renderRows(query=''){
     }catch(error){notice(error.message);}
   });
 }
+// Selector visual de horario para materias: día con botones, horas tipo reloj,
+// atajos de rangos comunes y una barra que muestra el horario elegido.
+function bloqueHorario(fila){
+ const dia=fila?.dia||'';
+ const hi=String(fila?.hora_inicio||'').slice(0,5);
+ const hf=String(fila?.hora_fin||'').slice(0,5);
+ const legado=fila?.horario||'';
+ const dias=[['Lunes','Lun'],['Martes','Mar'],['Miércoles','Mié'],['Jueves','Jue'],['Viernes','Vie'],['Sábado','Sáb'],['Domingo','Dom']];
+ const atajos=[['06:00','08:00'],['08:00','10:00'],['10:00','12:00'],['14:00','16:00'],['16:00','18:00'],['18:00','20:00']];
+ return `<div class="horario-card" id="horario-card">
+  <input type="hidden" name="dia" id="field-dia" value="${esc(dia)}">
+  <input type="hidden" name="hora_inicio" id="field-hora_inicio" value="${esc(hi)}">
+  <input type="hidden" name="hora_fin" id="field-hora_fin" value="${esc(hf)}">
+  <input type="hidden" name="horario" value="${esc(legado)}">
+  <div class="horario-card-top">
+   <div><h3>Horario de la materia</h3><p>Elige el día y las horas. Es opcional.</p></div>
+   <button type="button" class="horario-limpiar" id="horario-limpiar">Limpiar</button>
+  </div>
+  <div class="horario-dias" role="group" aria-label="Día de la semana">
+   ${dias.map(([d,c])=>`<button type="button" class="dia-chip${dia===d?' activo':''}" data-dia="${d}" aria-pressed="${dia===d?'true':'false'}" title="${d}">${c}</button>`).join('')}
+  </div>
+  <div class="horario-horas">
+   <label class="hora-campo" for="time-inicio"><span class="hora-etiqueta">Hora inicio</span><input type="time" id="time-inicio" step="1800" value="${hi}" aria-label="Hora de inicio"></label>
+   <span class="hora-flecha" aria-hidden="true">→</span>
+   <label class="hora-campo" for="time-fin"><span class="hora-etiqueta">Hora fin</span><input type="time" id="time-fin" step="1800" value="${hf}" aria-label="Hora de fin"></label>
+  </div>
+  <div class="horario-atajos"><span>Atajos</span>${atajos.map(([a,b])=>`<button type="button" class="atajo-hora" data-inicio="${a}" data-fin="${b}">${a}–${b}</button>`).join('')}</div>
+  <div class="horario-previa" id="horario-previa">
+   <div class="horario-previa-texto" id="horario-texto">Sin horario asignado (opcional)</div>
+   <div class="horario-linea"><div class="horario-rango" id="horario-rango"></div></div>
+   <div class="horario-escala" aria-hidden="true"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>22:00</span></div>
+  </div>
+ </div>`;
+}
+function conectarHorario(){
+ const card=$('#horario-card');if(!card)return;
+ const hDia=$('#field-dia'),hIni=$('#field-hora_inicio'),hFin=$('#field-hora_fin');
+ const tIni=$('#time-inicio'),tFin=$('#time-fin');
+ const botones=[...card.querySelectorAll('.dia-chip')];
+ const texto=$('#horario-texto'),rango=$('#horario-rango');
+ const pintar=()=>{
+  botones.forEach(b=>{const on=b.dataset.dia===hDia.value;b.classList.toggle('activo',on);b.setAttribute('aria-pressed',on?'true':'false');});
+  const [hi,mi]=hIni.value.split(':').map(Number),[hf,mf]=hFin.value.split(':').map(Number);
+  const tieneHoras=hIni.value&&hFin.value;
+  const completo=hDia.value&&tieneHoras;
+  card.classList.toggle('con-horario',!!completo);
+  if(!hDia.value){texto.textContent=tieneHoras?'Elige un día para el horario':'Sin horario asignado (opcional)';rango.style.display='none';return;}
+  if(!tieneHoras){texto.textContent='Completa la hora de inicio y de fin';rango.style.display='none';return;}
+  const minutos=hi*60+mi,fin=hf*60+mf,dur=(fin-minutos)/60;
+  texto.innerHTML=`<strong>${esc(hDia.value)}</strong> · ${hIni.value} a ${hFin.value}${dur>0?` <span class="horario-dur">${dur} h</span>`:''}`;
+  const iniPct=Math.max(0,Math.min(100,(minutos-360)/960*100));
+  const finPct=Math.max(0,Math.min(100,(fin-360)/960*100));
+  rango.style.display='block';rango.style.left=iniPct+'%';rango.style.width=Math.max(0,finPct-iniPct)+'%';
+ };
+ botones.forEach(b=>b.onclick=()=>{
+  const nuevo=hDia.value===b.dataset.dia?'':b.dataset.dia;
+  hDia.value=nuevo;
+  if(nuevo&&!hIni.value&&!hFin.value){tIni.value='08:00';tFin.value='10:00';hIni.value='08:00';hFin.value='10:00';}
+  pintar();
+ });
+ tIni.oninput=()=>{hIni.value=tIni.value;pintar();};
+ tFin.oninput=()=>{hFin.value=tFin.value;pintar();};
+ card.querySelectorAll('.atajo-hora').forEach(b=>b.onclick=()=>{
+  tIni.value=b.dataset.inicio;tFin.value=b.dataset.fin;
+  hIni.value=b.dataset.inicio;hFin.value=b.dataset.fin;
+  pintar();
+ });
+ $('#horario-limpiar').onclick=()=>{
+  hDia.value='';hIni.value='';hFin.value='';tIni.value='';tFin.value='';
+  pintar();
+ };
+ pintar();
+}
 function openForm(idMateria){
  const m=modules[current];$('#form').reset();$('#form-error').textContent='';
  editandoMateria=idMateria||null;let fila=null;
@@ -453,32 +532,23 @@ function openForm(idMateria){
   $('#dialog-eyebrow').textContent='NUEVO REGISTRO';
   $('#dialog-hint').textContent='Completa los datos. Los campos con * son obligatorios.';
  }
+ const esMaterias=current==='materias';
+ const camposHorario=['dia','hora_inicio','hora_fin','horario'];
  $('#fields').innerHTML=m.fields.map(([key,label,type,limit,source,optional])=>{
+  if(esMaterias&&camposHorario.includes(key))return '';
   let control;
-   if(type==='select'){
-    const val=fila?fila[key]:'';
-    if(key==='dia'||key==='hora_inicio'||key==='hora_fin'){
-    let opcionesHtml='';
-    if(key==='dia'){
-     const dias=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-     opcionesHtml=dias.map(d=>`<option value="${d}"${val===d?' selected':''}>${esc(d)}</option>`).join('');
-    }else{
-     const horas=[];
-     for(let h=7;h<=22;h++){for(let m=0;m<60;m+=30){const hh=String(h).padStart(2,'0'),mm=String(m).padStart(2,'0');horas.push(`${hh}:${mm}`);}}
-     opcionesHtml=horas.map(h=>`<option value="${h}"${val===h?' selected':''}>${esc(h)}</option>`).join('');
-    }
-    control=`<select name="${key}" id="field-${key}"><option value="">Selecciona una opción</option>${opcionesHtml}</select>`;
-   }else{
-    const rows=data[source]||[],id=modules[source].fields[0][0];
-    control=`<select name="${key}" id="field-${key}" ${key==='dia'||key==='hora_inicio'||key==='hora_fin'?'':'required'}><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}"${val===r[id]?' selected':''}>${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
-   }
-   }else {
-    const baseVal=fila?(fila[key]??''):(key==='cupos'?20:'');
-    const readonly=key==='id_materia'&&editandoMateria?'readonly':'';
-    control=`<input id="field-${key}" name="${key}" type="${type}" value="${esc(baseVal)}" ${optional?'':'required'} ${readonly} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`}>`;
+  if(type==='select'){
+   const val=fila?fila[key]:'';
+   const rows=data[source]||[],id=modules[source].fields[0][0];
+   control=`<select name="${key}" id="field-${key}" required><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}"${val===r[id]?' selected':''}>${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
+  }else {
+   const baseVal=fila?(fila[key]??''):(key==='cupos'?20:'');
+   const readonly=key==='id_materia'&&editandoMateria?'readonly':'';
+   control=`<input id="field-${key}" name="${key}" type="${type}" value="${esc(baseVal)}" ${optional?'':'required'} ${readonly} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`}>`;
   }
   return `<div><label for="field-${key}">${label}${optional?' (opcional)':' *'}</label>${control}</div>`;
- }).join('');
+ }).join('')+(esMaterias?bloqueHorario(fila):'');
+ if(esMaterias)conectarHorario();
  const missing=m.fields.filter(f=>f[4]&&(!data[f[4]]?.length||errors[f[4]]));
  $('#save').disabled=!!missing.length;
  if(missing.length)$('#form-error').textContent='Carga o registra primero: '+missing.map(f=>modules[f[4]].title).join(', ')+'.';
@@ -492,6 +562,12 @@ $('#form').onsubmit=async e=>{
   const raw=String(values.get(name)||'').trim();
   if(!optional&&!raw){$('#form-error').textContent=`Completa el campo ${label}.`;return;}
   payload[name]=type==='number'?Number(raw):(raw||null);
+ }
+ if(key==='materias'){
+  const algo=payload.dia||payload.hora_inicio||payload.hora_fin;
+  const completo=payload.dia&&payload.hora_inicio&&payload.hora_fin;
+  if(algo&&!completo){$('#form-error').textContent='Completa el día, la hora de inicio y la hora de fin, o deja el horario vacío.';return;}
+  if(completo&&payload.hora_fin<=payload.hora_inicio){$('#form-error').textContent='La hora de fin debe ser mayor que la hora de inicio.';return;}
  }
  saving=true;$('#save').disabled=true;$('#save').textContent='Guardando…';$('#cancel').disabled=true;$('#close').disabled=true;
  const metodo=editandoMateria?'PUT':'POST';
