@@ -41,7 +41,7 @@
 #session-greeting b{font-weight:700}
 #logout{padding:10px 16px;font-size:13px}
 .side-bottom-note{color:#7f9aac;font-size:11px;line-height:1.7;margin-top:12px}
-.carrito{display:grid;gap:10px;padding:4px 26px 10px}.carrito-item{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:14px 18px;cursor:pointer;background:white;transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease}.carrito-item:hover{border-color:#9ed6d1}.carrito-item:has(input:checked){border-color:var(--teal);background:#f2faf9;box-shadow:inset 0 0 0 1px var(--teal)}.carrito-item input{width:18px;height:18px;accent-color:var(--teal);cursor:pointer;margin:0}.carrito-info{display:grid;gap:0}.carrito-nombre{font-size:14.5px;font-weight:600;color:#182f43;line-height:1.4}.carrito-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chip{font-size:11px;font-weight:600;color:#4a6274;background:#eef3f6;border-radius:20px;padding:4px 10px;letter-spacing:.3px;white-space:nowrap}.chip-creditos{background:#eaf5f3;color:#1f6b5e}#total-creditos{color:#2E8B57}.guardar-nota{padding:8px 12px;font-size:13px}
+.carrito{display:grid;gap:10px;padding:4px 26px 10px}.carrito-item{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:14px 18px;cursor:pointer;background:white;transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease}.carrito-item:hover{border-color:#9ed6d1}.carrito-item:has(input:checked){border-color:var(--teal);background:#f2faf9;box-shadow:inset 0 0 0 1px var(--teal)}.carrito-item input{width:18px;height:18px;accent-color:var(--teal);cursor:pointer;margin:0}.carrito-info{display:grid;gap:0}.carrito-nombre{font-size:14.5px;font-weight:600;color:#182f43;line-height:1.4}.carrito-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chip{font-size:11px;font-weight:600;color:#4a6274;background:#eef3f6;border-radius:20px;padding:4px 10px;letter-spacing:.3px;white-space:nowrap}.chip-creditos{background:#eaf5f3;color:#1f6b5e}.chip-semestre{background:#eef5f9;color:#22577a}.chip-obligatoria{background:#efeafd;color:#5b3fa8}.chip-electiva{background:#fdf4e0;color:#9a6b0a}#total-creditos{color:#2E8B57}.guardar-nota{padding:8px 12px;font-size:13px}
 @media(max-width:760px){#connection{display:none}.session-chip{gap:10px}} 
 /* ====== Transición direccional entre secciones (respeta prefers-reduced-motion) ====== */
 #view{transition:opacity .22s ease,transform .22s ease}
@@ -146,6 +146,9 @@ body.tema-oscuro input::placeholder{color:#64818f}
 body.tema-oscuro label{color:#a9c2cf}
 body.tema-oscuro .chip{background:#1c3d52;color:#a9c2cf}
 body.tema-oscuro .chip-creditos{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .chip-semestre{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .chip-obligatoria{background:#2c2452;color:#c3b4f2}
+body.tema-oscuro .chip-electiva{background:#3b2f12;color:#ecc76d}
 body.tema-oscuro .id{background:#12414a;color:#7fd8cc}
 body.tema-oscuro .carrito-item:hover{border-color:#2e6a72}
 body.tema-oscuro .carrito-item:has(input:checked){background:#14424b}
@@ -254,3 +257,133 @@ body.tema-oscuro .actividad-item strong{color:#e6f1f7}
 body.tema-oscuro .chip-momento{background:#3b2f12;color:#ecc76d}
 body.tema-oscuro .chip-calculada{background:#12414a;color:#7fd8cc}
 body.tema-oscuro .sugerido{color:#ecc76d}
+
+/* ====== Plan de estudios del programa en admin (se abre desde Programas) ====== */
+.lista-plan{display:grid;gap:20px;padding:0 26px 26px}
+.plan-grupo{display:grid;gap:10px}
+.plan-grupo h3{font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:#4a6274;margin:4px 0 2px}
+.plan-grupo h3 .count{font-size:11px;letter-spacing:0;text-transform:none;color:#5c7080;margin-left:6px}
+.plan-item{display:flex;justify-content:space-between;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:14px 18px;background:white;flex-wrap:wrap}
+.plan-info{display:flex;flex-direction:column;gap:8px;min-width:0}
+.plan-info strong{font-size:14.5px;color:#182f43}
+.plan-acciones{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.plan-acciones button{padding:8px 12px;font-size:13px}
+.plan-semestre-label{display:inline-flex;gap:8px;align-items:center;font-size:12px;font-weight:600;color:#4a6274}
+.plan-semestre{width:64px;padding:8px 10px;border:1px solid #cfdce4;border-radius:7px;background:white;color:#183448;font-size:13px}
+button.plan-quitar{color:#b02a37}
+#form-plan-add{padding:0 26px 26px}
+#form-plan-add .fields{margin-top:0}
+#plan-error{color:#b33232;font-size:13px;margin:10px 0 0}
+@media(max-width:760px){.plan-item{align-items:flex-start;flex-direction:column}.lista-plan{padding:0 18px 18px}#form-plan-add{padding:0 18px 18px}}
+body.tema-oscuro .plan-item{background:#133145;border-color:#28475a}
+body.tema-oscuro .plan-info strong{color:#e6f1f7}
+body.tema-oscuro .plan-grupo h3,body.tema-oscuro .plan-grupo h3 .count{color:#9db4c0}
+body.tema-oscuro .plan-semestre{background:#0f2a3b;border-color:#2a4a5e;color:#d9e6ee}
+body.tema-oscuro .plan-semestre-label{color:#9db4c0}
+body.tema-oscuro #plan-error{color:#ff9299}
+body.tema-oscuro button.plan-quitar{color:#ff9299}
+
+/* ====== Acciones de la tabla: botones con icono ====== */
+td.acciones{white-space:nowrap}
+table .btn-icono{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:34px;
+  height:34px;
+  padding:0;
+  margin-right:6px;
+  border:1px solid transparent;
+  border-radius:9px;
+  background:#eef4f7;
+  color:#0f6b70;
+  cursor:pointer;
+  vertical-align:middle;
+  transition:background .15s ease,color .15s ease,transform .15s ease,box-shadow .15s ease;
+}
+table .btn-icono svg{
+  width:16px;
+  height:16px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  pointer-events:none;
+}
+table .btn-icono:hover{
+  background:#0f6b70;
+  color:#fff;
+  transform:translateY(-1px);
+  box-shadow:0 4px 10px rgba(15,107,112,.28);
+}
+table .btn-icono:active{transform:translateY(0);box-shadow:none}
+table .btn-icono:focus-visible{outline:2px solid #0f6b70;outline-offset:2px}
+table .btn-icono-peligro{background:#fdeeee;color:#b02a37}
+table .btn-icono-peligro:hover{background:#b02a37;color:#fff;box-shadow:0 4px 10px rgba(176,42,55,.28)}
+body.tema-oscuro table .btn-icono{background:#133145;color:#7fd8cc}
+body.tema-oscuro table .btn-icono:hover{background:#007c82;color:#fff}
+body.tema-oscuro table .btn-icono-peligro{background:#3b1219;color:#ff9299}
+body.tema-oscuro table .btn-icono-peligro:hover{background:#b02a37;color:#fff}
+
+/* ====== Selector visual de horario (Materias) ====== */
+#fields .horario-card{
+  grid-column:1/-1;
+  border:1px solid #d7e4ea;
+  border-radius:14px;
+  background:#f8fbfc;
+  padding:18px;
+  display:grid;
+  gap:14px;
+}
+.horario-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.horario-card-top h3{margin:0;font-size:14px;color:#183448}
+.horario-card-top p{margin:3px 0 0;font-size:12px;color:#6b8090}
+.horario-limpiar{background:transparent;color:#6b8090;padding:6px 10px;font-size:12px;font-weight:600;border:1px solid #d7e4ea;border-radius:8px;flex:0 0 auto}
+.horario-limpiar:hover{background:#eef4f7;color:#b02a37;filter:none}
+.horario-dias{display:grid;grid-template-columns:repeat(7,minmax(38px,1fr));gap:8px}
+.dia-chip{padding:0;height:46px;border-radius:10px;background:#fff;border:1px solid #d7e4ea;color:#36576b;font-size:12px;font-weight:700;display:grid;place-items:center;transition:all .15s ease}
+.dia-chip:hover{border-color:#0f6b70;color:#0f6b70;background:#eef8f7;filter:none;transform:translateY(-1px)}
+.dia-chip.activo{background:#0f6b70;border-color:#0f6b70;color:#fff;box-shadow:0 4px 12px rgba(15,107,112,.25)}
+.horario-horas{display:flex;align-items:flex-end;gap:10px}
+.hora-campo{flex:1;display:grid;gap:5px;min-width:0}
+.hora-etiqueta{font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;color:#5c7080;font-weight:700}
+.hora-campo input{width:100%;height:44px;padding:0 12px;border:1px solid #cfdce4;border-radius:10px;background:#fff;color:#183448;font-size:15px;font-weight:700;letter-spacing:.5px;color-scheme:light}
+.hora-campo input:focus{border-color:#0f6b70;outline:none;box-shadow:0 0 0 3px rgba(15,107,112,.18)}
+.hora-flecha{color:#8aa0ae;font-size:18px;padding-bottom:12px}
+.horario-atajos{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.horario-atajos>span{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:#8aa0ae;font-weight:700;margin-right:2px}
+.atajo-hora{background:#fff;border:1px solid #d7e4ea;color:#36576b;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:600}
+.atajo-hora:hover{border-color:#0f6b70;color:#0f6b70;background:#eef8f7;filter:none}
+.horario-previa{border-top:1px dashed #d7e4ea;padding-top:12px;display:grid;gap:7px}
+.horario-previa-texto{font-size:13px;font-weight:600;color:#8aa0ae}
+.horario-card.con-horario .horario-previa-texto{color:#0f6b70}
+.horario-previa-texto strong{color:#183448}
+.horario-dur{background:#e6f4f2;color:#1f6b5e;border-radius:20px;padding:2px 8px;font-size:11px;margin-left:4px;white-space:nowrap}
+.horario-linea{position:relative;height:10px;border-radius:20px;background:#e3edf1;overflow:hidden}
+.horario-rango{position:absolute;top:0;bottom:0;border-radius:20px;background:linear-gradient(90deg,#14a3a3,#0f6b70);display:none}
+.horario-escala{display:flex;justify-content:space-between;font-size:10px;color:#9db0bc;letter-spacing:.3px}
+.chip-horario{display:inline-block;background:#eaf5f3;color:#1f6b5e;border-radius:20px;padding:4px 10px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.chip-horario-texto{background:#eef3f6;color:#4a6274}
+.sin-horario{color:#a9bac5}
+body.tema-oscuro #fields .horario-card{background:#0f2a3b;border-color:#2a4a5e}
+body.tema-oscuro .horario-card-top h3{color:#e6f1f7}
+body.tema-oscuro .horario-card-top p,body.tema-oscuro .horario-escala{color:#8fa8b6}
+body.tema-oscuro .horario-limpiar{border-color:#2a4a5e;color:#9db4c0}
+body.tema-oscuro .horario-limpiar:hover{background:#1c3d52;color:#ff9299}
+body.tema-oscuro .dia-chip{background:#133145;border-color:#2a4a5e;color:#a9c2cf}
+body.tema-oscuro .dia-chip:hover{border-color:#4fc3c9;color:#8ce4d8;background:#14424b}
+body.tema-oscuro .dia-chip.activo{background:#007c82;border-color:#0f8f96;color:#fff;box-shadow:0 4px 12px rgba(0,124,130,.35)}
+body.tema-oscuro .hora-etiqueta{color:#8fa8b6}
+body.tema-oscuro .hora-campo input{background:#0f2a3b;border-color:#2a4a5e;color:#e6f1f7;color-scheme:dark}
+body.tema-oscuro .atajo-hora{background:#133145;border-color:#2a4a5e;color:#a9c2cf}
+body.tema-oscuro .atajo-hora:hover{border-color:#4fc3c9;color:#8ce4d8;background:#14424b}
+body.tema-oscuro .horario-previa{border-top-color:#2a4a5e}
+body.tema-oscuro .horario-previa-texto{color:#8fa8b6}
+body.tema-oscuro .horario-card.con-horario .horario-previa-texto{color:#7fd8cc}
+body.tema-oscuro .horario-previa-texto strong{color:#e6f1f7}
+body.tema-oscuro .horario-dur{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .horario-linea{background:#1c3d52}
+body.tema-oscuro .chip-horario{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .chip-horario-texto{background:#1c3d52;color:#a9c2cf}
+body.tema-oscuro .sin-horario{color:#64818f}

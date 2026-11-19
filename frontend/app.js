@@ -195,7 +195,7 @@ function iniciarSesion(sesion){
   render();
 }
 $('#logout').onclick=()=>{
-  SESION=null;data={};errors={};
+  SESION=null;data={};errors={};planDe=null;
   cierraLogoMenu();
   crossfade([$('#app-workspace'),$('#app-aside')],[$('#login-screen')]);
   $('#session-greeting').textContent='';
@@ -249,7 +249,17 @@ const modules = {
  profesores:{title:'Profesores',singular:'profesor',icon:'♧',description:'Organiza el equipo docente y sus datos de identificación.',fields:[['id_profesor','ID del profesor','text',20],['nombre','Nombres','text',60],['apellidos','Apellidos','text',60]]},
  facultades:{title:'Facultades',singular:'facultad',icon:'▦',description:'Administra las facultades que organizan la oferta académica.',fields:[['id_facultad','Código','text',10],['nombre_facultad','Nombre de la facultad','text',100]]},
  programas:{title:'Programas',singular:'programa',icon:'▤',description:'Conecta cada programa académico con su facultad.',fields:[['id_programa','Código','text',10],['nombre_programa','Nombre del programa','text',100],['id_facultad','Facultad','select',null,'facultades']]},
- materias:{title:'Materias',singular:'materia',icon:'▥',description:'Gestiona la oferta de cursos, sus horarios y profesores.',fields:[['id_materia','Código','text',10],['nombre_curso','Nombre del curso','text',100],['creditos','Créditos','number',1],['cupos','Cupos','number',0],['id_facultad','Facultad','select',null,'facultades'],['horario','Horario','text',100,null,true],['id_profesor','Profesor','select',null,'profesores']]},
+ materias:{title:'Materias',singular:'materia',icon:'▥',description:'Gestiona la oferta de cursos, sus horarios y profesores.',fields:[
+    ['id_materia','Código','text',10],
+    ['nombre_curso','Nombre del curso','text',100],
+    ['creditos','Créditos','number',1],
+    ['cupos','Cupos','number',0],
+    ['id_facultad','Facultad','select',null,'facultades'],
+    ['dia','Día','select',null,null,true],
+    ['hora_inicio','Hora inicio','select',null,null,true],
+    ['hora_fin','Hora fin','select',null,null,true],
+    ['horario','Horario','text',100,null,true],
+    ['id_profesor','Profesor','select',null,'profesores']]},
  periodos:{title:'Periodos',singular:'periodo',icon:'⏱',description:'Ventanas de fechas en las que se puede matricular.',fields:[['periodo','Periodo (ej. 2026-2)','text',10],['fecha_inicio','Fecha inicio (YYYY-MM-DD)','date',null],['fecha_fin','Fecha fin (YYYY-MM-DD)','date',null]]},
 };
 function relatedLabel(key,id){
@@ -257,11 +267,19 @@ function relatedLabel(key,id){
  return row ? `${id} · ${row.nombre_facultad||row.nombre_programa||row.nombre_curso||[row.nombre,row.apellidos].filter(Boolean).join(' ')}` : id;
 }
 function display(row,field){return field[4]?relatedLabel(field[4],row[field[0]]):row[field[0]];}
-function table(key,rows){const m=modules[key];return `<div class="table-wrap"><table><thead><tr>${m.fields.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${m.fields.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
+function horarioTexto(row){
+ const hi=String(row.hora_inicio||'').slice(0,5),hf=String(row.hora_fin||'').slice(0,5);
+ if(row.dia&&hi&&hf)return `<span class="chip-horario">${esc(row.dia)} ${hi}–${hf}</span>`;
+ if(row.horario)return `<span class="chip-horario chip-horario-texto">${esc(row.horario)}</span>`;
+ return '<span class="sin-horario">—</span>';
+}
+function table(key,rows){const m=modules[key];const conPlan=key==='programas';const conAcciones=key==='materias';const esMaterias=key==='materias';const campos=esMaterias?m.fields.filter(f=>!['dia','hora_inicio','hora_fin','horario'].includes(f[0])):m.fields;
+ return `<div class="table-wrap"><table><thead><tr>${campos.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${esMaterias?'<th scope="col">Horario</th>':''}${conPlan?'<th scope="col">Plan de estudios</th>':''}${conAcciones?'<th scope="col">Acciones</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${campos.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${esMaterias?`<td>${horarioTexto(row)}</td>`:''}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}${conAcciones?`<td class="acciones"><button type="button" class="btn-icono btn-editar" data-id="${esc(row.id_materia)}" title="Editar ${esc(row.nombre_curso)}" aria-label="Editar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="btn-icono btn-icono-peligro btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}" title="Eliminar ${esc(row.nombre_curso)}" aria-label="Eliminar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
 
 // ====== Render principal ======
 function go(key){
   if(!SESION) return;
+  planDe=null; // reabrir Programas siempre muestra la lista, no un plan abierto
   if(key===current){render();return;}
   const origen=current;
   current=key;location.hash=key;
@@ -386,12 +404,17 @@ function vistaResumen(){
 }
 
 // ====== Catálogo (solo admin) ======
+// Plan de estudios abierto (drill-down dentro de Programas; estado solo en memoria)
+let planDe=null;
+// Materia en edición (null = crear nueva)
+let editandoMateria=null;
 async function vistaCatalogo(){
  const key=current, m=modules[key];
  if(!m){$('#view').innerHTML=vacio('◈','Pantalla no disponible','Vuelve al resumen y elige una sección del menú.');return;}
+ if(key==='programas'&&planDe){vistaPlanPrograma(planDe);return;}
  $('#refresh').hidden=false;
  $('#view').innerHTML=`<div id="franja-zone"></div><section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…"><span class="count" id="count"></span></div><div id="rows"></div></section>`;
- $('#new').onclick=openForm;$('#search').oninput=e=>renderRows(e.target.value);
+ $('#new').onclick=()=>openForm();$('#search').oninput=e=>renderRows(e.target.value);
  renderRows();
  await asegurarCatalogos();
  if(current!==key) return;
@@ -406,16 +429,126 @@ function renderRows(query=''){
  const all=data[key], q=query.toLocaleLowerCase('es'), rows=all.filter(r=>modules[key].fields.some(f=>String(display(r,f)??'').toLocaleLowerCase('es').includes(q)));
  $('#count').textContent=`${rows.length} de ${all.length} registros`;
  area.innerHTML=rows.length?table(key,rows):(q?vacio('⌕','Sin coincidencias',`Ningún registro coincide con "${query}". Prueba con otro término.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
+ area.querySelectorAll('.btn-plan').forEach(b=>b.onclick=()=>{planDe=b.dataset.id;vistaPlanPrograma(b.dataset.id);});
+  area.querySelectorAll('.btn-editar').forEach(b=>b.onclick=async()=>{
+    try{
+      if(current!=='materias'){await go('materias');}
+      openForm(b.dataset.id);
+    }catch(error){notice(error.message);}
+  });
+  area.querySelectorAll('.btn-eliminar').forEach(b=>b.onclick=async()=>{
+    if(!confirm(`¿Eliminar '${b.dataset.nombre}'?`))return;
+    try{
+      await apiAuth(`/materias/${encodeURIComponent(b.dataset.id)}`,{method:'DELETE'});
+      notice(`Materia ${b.dataset.id} eliminada.`,true);
+      await refreshCatalogos();
+      renderRows();
+    }catch(error){notice(error.message);}
+  });
 }
-function openForm(){
- const m=modules[current];$('#form').reset();$('#form-error').textContent='';$('#dialog-title').textContent=`Registrar ${m.singular}`;$('#dialog-eyebrow').textContent='NUEVO REGISTRO';$('#dialog-hint').textContent='Completa los datos. Los campos con * son obligatorios.';
+// Selector visual de horario para materias: día con botones, horas tipo reloj,
+// atajos de rangos comunes y una barra que muestra el horario elegido.
+function bloqueHorario(fila){
+ const dia=fila?.dia||'';
+ const hi=String(fila?.hora_inicio||'').slice(0,5);
+ const hf=String(fila?.hora_fin||'').slice(0,5);
+ const legado=fila?.horario||'';
+ const dias=[['Lunes','Lun'],['Martes','Mar'],['Miércoles','Mié'],['Jueves','Jue'],['Viernes','Vie'],['Sábado','Sáb'],['Domingo','Dom']];
+ const atajos=[['06:00','08:00'],['08:00','10:00'],['10:00','12:00'],['14:00','16:00'],['16:00','18:00'],['18:00','20:00']];
+ return `<div class="horario-card" id="horario-card">
+  <input type="hidden" name="dia" id="field-dia" value="${esc(dia)}">
+  <input type="hidden" name="hora_inicio" id="field-hora_inicio" value="${esc(hi)}">
+  <input type="hidden" name="hora_fin" id="field-hora_fin" value="${esc(hf)}">
+  <input type="hidden" name="horario" value="${esc(legado)}">
+  <div class="horario-card-top">
+   <div><h3>Horario de la materia</h3><p>Elige el día y las horas. Es opcional.</p></div>
+   <button type="button" class="horario-limpiar" id="horario-limpiar">Limpiar</button>
+  </div>
+  <div class="horario-dias" role="group" aria-label="Día de la semana">
+   ${dias.map(([d,c])=>`<button type="button" class="dia-chip${dia===d?' activo':''}" data-dia="${d}" aria-pressed="${dia===d?'true':'false'}" title="${d}">${c}</button>`).join('')}
+  </div>
+  <div class="horario-horas">
+   <label class="hora-campo" for="time-inicio"><span class="hora-etiqueta">Hora inicio</span><input type="time" id="time-inicio" step="1800" value="${hi}" aria-label="Hora de inicio"></label>
+   <span class="hora-flecha" aria-hidden="true">→</span>
+   <label class="hora-campo" for="time-fin"><span class="hora-etiqueta">Hora fin</span><input type="time" id="time-fin" step="1800" value="${hf}" aria-label="Hora de fin"></label>
+  </div>
+  <div class="horario-atajos"><span>Atajos</span>${atajos.map(([a,b])=>`<button type="button" class="atajo-hora" data-inicio="${a}" data-fin="${b}">${a}–${b}</button>`).join('')}</div>
+  <div class="horario-previa" id="horario-previa">
+   <div class="horario-previa-texto" id="horario-texto">Sin horario asignado (opcional)</div>
+   <div class="horario-linea"><div class="horario-rango" id="horario-rango"></div></div>
+   <div class="horario-escala" aria-hidden="true"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>22:00</span></div>
+  </div>
+ </div>`;
+}
+function conectarHorario(){
+ const card=$('#horario-card');if(!card)return;
+ const hDia=$('#field-dia'),hIni=$('#field-hora_inicio'),hFin=$('#field-hora_fin');
+ const tIni=$('#time-inicio'),tFin=$('#time-fin');
+ const botones=[...card.querySelectorAll('.dia-chip')];
+ const texto=$('#horario-texto'),rango=$('#horario-rango');
+ const pintar=()=>{
+  botones.forEach(b=>{const on=b.dataset.dia===hDia.value;b.classList.toggle('activo',on);b.setAttribute('aria-pressed',on?'true':'false');});
+  const [hi,mi]=hIni.value.split(':').map(Number),[hf,mf]=hFin.value.split(':').map(Number);
+  const tieneHoras=hIni.value&&hFin.value;
+  const completo=hDia.value&&tieneHoras;
+  card.classList.toggle('con-horario',!!completo);
+  if(!hDia.value){texto.textContent=tieneHoras?'Elige un día para el horario':'Sin horario asignado (opcional)';rango.style.display='none';return;}
+  if(!tieneHoras){texto.textContent='Completa la hora de inicio y de fin';rango.style.display='none';return;}
+  const minutos=hi*60+mi,fin=hf*60+mf,dur=(fin-minutos)/60;
+  texto.innerHTML=`<strong>${esc(hDia.value)}</strong> · ${hIni.value} a ${hFin.value}${dur>0?` <span class="horario-dur">${dur} h</span>`:''}`;
+  const iniPct=Math.max(0,Math.min(100,(minutos-360)/960*100));
+  const finPct=Math.max(0,Math.min(100,(fin-360)/960*100));
+  rango.style.display='block';rango.style.left=iniPct+'%';rango.style.width=Math.max(0,finPct-iniPct)+'%';
+ };
+ botones.forEach(b=>b.onclick=()=>{
+  const nuevo=hDia.value===b.dataset.dia?'':b.dataset.dia;
+  hDia.value=nuevo;
+  if(nuevo&&!hIni.value&&!hFin.value){tIni.value='08:00';tFin.value='10:00';hIni.value='08:00';hFin.value='10:00';}
+  pintar();
+ });
+ tIni.oninput=()=>{hIni.value=tIni.value;pintar();};
+ tFin.oninput=()=>{hFin.value=tFin.value;pintar();};
+ card.querySelectorAll('.atajo-hora').forEach(b=>b.onclick=()=>{
+  tIni.value=b.dataset.inicio;tFin.value=b.dataset.fin;
+  hIni.value=b.dataset.inicio;hFin.value=b.dataset.fin;
+  pintar();
+ });
+ $('#horario-limpiar').onclick=()=>{
+  hDia.value='';hIni.value='';hFin.value='';tIni.value='';tFin.value='';
+  pintar();
+ };
+ pintar();
+}
+function openForm(idMateria){
+ const m=modules[current];$('#form').reset();$('#form-error').textContent='';
+ editandoMateria=idMateria||null;let fila=null;
+ if(editandoMateria){
+  $('#dialog-title').textContent=`Editar ${m.singular}`;
+  $('#dialog-eyebrow').textContent='EDITAR REGISTRO';
+  $('#dialog-hint').textContent='Modifica los campos que quieras cambiar y guarda.';
+  fila=(data[current]||[]).find(r=>r[m.fields[0][0]]===editandoMateria);
+ }else{
+  $('#dialog-title').textContent=`Registrar ${m.singular}`;
+  $('#dialog-eyebrow').textContent='NUEVO REGISTRO';
+  $('#dialog-hint').textContent='Completa los datos. Los campos con * son obligatorios.';
+ }
+ const esMaterias=current==='materias';
+ const camposHorario=['dia','hora_inicio','hora_fin','horario'];
  $('#fields').innerHTML=m.fields.map(([key,label,type,limit,source,optional])=>{
+  if(esMaterias&&camposHorario.includes(key))return '';
   let control;
   if(type==='select'){
-   const rows=data[source]||[],id=modules[source].fields[0][0];control=`<select name="${key}" id="field-${key}" required><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}">${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
-  }else control=`<input id="field-${key}" name="${key}" type="${type}" ${optional?'':'required'} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`} ${key==='cupos'?'value="20"':''}>`;
+   const val=fila?fila[key]:'';
+   const rows=data[source]||[],id=modules[source].fields[0][0];
+   control=`<select name="${key}" id="field-${key}" required><option value="">${rows.length?'Selecciona una opción':`Primero registra ${modules[source].title.toLowerCase()}`}</option>${rows.map(r=>`<option value="${esc(r[id])}"${val===r[id]?' selected':''}>${esc(relatedLabel(source,r[id]))}</option>`).join('')}</select>`;
+  }else {
+   const baseVal=fila?(fila[key]??''):(key==='cupos'?20:'');
+   const readonly=key==='id_materia'&&editandoMateria?'readonly':'';
+   control=`<input id="field-${key}" name="${key}" type="${type}" value="${esc(baseVal)}" ${optional?'':'required'} ${readonly} ${type==='number'?`min="${limit}" max="2147483647" step="1"`:`maxlength="${limit||10}"`}>`;
+  }
   return `<div><label for="field-${key}">${label}${optional?' (opcional)':' *'}</label>${control}</div>`;
- }).join('');
+ }).join('')+(esMaterias?bloqueHorario(fila):'');
+ if(esMaterias)conectarHorario();
  const missing=m.fields.filter(f=>f[4]&&(!data[f[4]]?.length||errors[f[4]]));
  $('#save').disabled=!!missing.length;
  if(missing.length)$('#form-error').textContent='Carga o registra primero: '+missing.map(f=>modules[f[4]].title).join(', ')+'.';
@@ -430,23 +563,111 @@ $('#form').onsubmit=async e=>{
   if(!optional&&!raw){$('#form-error').textContent=`Completa el campo ${label}.`;return;}
   payload[name]=type==='number'?Number(raw):(raw||null);
  }
+ if(key==='materias'){
+  const algo=payload.dia||payload.hora_inicio||payload.hora_fin;
+  const completo=payload.dia&&payload.hora_inicio&&payload.hora_fin;
+  if(algo&&!completo){$('#form-error').textContent='Completa el día, la hora de inicio y la hora de fin, o deja el horario vacío.';return;}
+  if(completo&&payload.hora_fin<=payload.hora_inicio){$('#form-error').textContent='La hora de fin debe ser mayor que la hora de inicio.';return;}
+ }
  saving=true;$('#save').disabled=true;$('#save').textContent='Guardando…';$('#cancel').disabled=true;$('#close').disabled=true;
- try{await apiAuth(`/${key}/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();await refreshCatalogos();pintaFranja(key);renderRows();if(!errors[key])notice('Registro guardado correctamente.',true);}
+ const metodo=editandoMateria?'PUT':'POST';
+  const ruta=editandoMateria?`/${key}/${encodeURIComponent(editandoMateria)}` : `/${key}/`;
+  try{await apiAuth(ruta,{method:metodo,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('#dialog').close();editandoMateria=null;await refreshCatalogos();pintaFranja(key);renderRows();if(!errors[key])notice(`Registro ${metodo==='PUT'?'actualizado':'guardado'} correctamente.`,true);}
  catch(error){$('#form-error').textContent=mensajeRol(error);}
  finally{saving=false;$('#save').disabled=false;$('#save').textContent='Guardar registro';$('#cancel').disabled=false;$('#close').disabled=false;}
 };
 $('#dialog').addEventListener('cancel',e=>{if(saving)e.preventDefault();});$('#close').onclick=closeForm;$('#cancel').onclick=closeForm;
+
+// ====== Admin: Plan de estudios de un programa (se abre desde Programas) ======
+// Usa los endpoints de la Parte 6A: GET/POST /programas/{id}/plan y
+// PUT/DELETE /programas/{id}/plan/{id_materia} (solo Administrador).
+// Los cambios de plan no afectan matrículas, notas ni tareas ya guardadas.
+const SEMESTRES=[1,2,3,4,5,6,7,8,9,10];
+async function vistaPlanPrograma(idPrograma){
+ $('#refresh').hidden=false;
+ $('#view').innerHTML=vacio('⏳','Cargando plan de estudios','Un momento, consultamos las materias del programa.');
+ try{
+  await asegurarCatalogos();
+  if(current!=='programas'||planDe!==idPrograma)return;
+  const programa=(data.programas||[]).find(p=>p.id_programa===idPrograma);
+  const nombrePrograma=programa?programa.nombre_programa:idPrograma;
+  const plan=await apiAuth(`/programas/${encodeURIComponent(idPrograma)}/plan`);
+  if(current!=='programas'||planDe!==idPrograma)return;
+  const enPlan=new Set(plan.map(f=>f.id_materia));
+  const hayMaterias=Array.isArray(data.materias);
+  const fuera=hayMaterias?(data.materias||[]).filter(m=>!enPlan.has(m.id_materia)):[];
+  const obligatorias=plan.filter(f=>f.obligatoria).length;
+  const recarga=()=>vistaPlanPrograma(idPrograma);
+  const rutaMateria=id=>`/programas/${encodeURIComponent(idPrograma)}/plan/${encodeURIComponent(id)}`;
+  const item=f=>`<article class="plan-item" data-id="${esc(f.id_materia)}"><div class="plan-info"><strong>${esc(f.nombre_curso)}</strong><span class="tarea-meta"><span class="chip">${esc(f.id_materia)}</span><span class="chip chip-creditos">${f.creditos} créditos</span><span class="chip ${f.obligatoria?'chip-obligatoria':'chip-electiva'}">${f.obligatoria?'Obligatoria':'Electiva'}</span></span></div><div class="plan-acciones"><label class="plan-semestre-label">Semestre <select class="plan-semestre" data-id="${esc(f.id_materia)}" aria-label="Semestre de ${esc(f.nombre_curso)}">${SEMESTRES.map(n=>`<option value="${n}"${n===f.semestre?' selected':''}>${n}</option>`).join('')}</select></label><button type="button" class="secondary plan-tipo" data-id="${esc(f.id_materia)}" data-obligatoria="${f.obligatoria?'true':'false'}">${f.obligatoria?'Hacer electiva':'Hacer obligatoria'}</button><button type="button" class="secondary plan-quitar" data-id="${esc(f.id_materia)}" data-nombre="${esc(f.nombre_curso)}">Quitar ✕</button></div></article>`;
+  // Agrupadas por semestre (1 a 10): solo los semestres que tienen materias
+  const grupos=SEMESTRES.map(n=>({n,filas:plan.filter(f=>f.semestre===n)})).filter(g=>g.filas.length);
+  const lista=plan.length?grupos.map(g=>`<section class="plan-grupo"><h3>Semestre ${g.n}<span class="count">· ${g.filas.length} ${g.filas.length===1?'materia':'materias'}</span></h3>${g.filas.map(item).join('')}</section>`).join(''):vacio('▤','Este programa aún no tiene materias en su plan','Agrega la primera con el formulario "Agregar materia al plan" de abajo.');
+  const opciones=fuera.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
+  const formulario=hayMaterias
+   ?(fuera.length?`<div class="fields"><div><label for="plan-materia">Materia *</label><select id="plan-materia" required>${opciones}</select></div><div><label for="plan-semestre-nuevo">Semestre *</label><select id="plan-semestre-nuevo" required>${SEMESTRES.map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div><div><label for="plan-tipo-nuevo">Tipo</label><select id="plan-tipo-nuevo"><option value="true">Obligatoria</option><option value="false">Electiva</option></select></div></div><p id="plan-error" role="alert"></p><div class="form-actions"><button type="submit" id="plan-agregar">Agregar al plan</button></div>`
+   :vacio('▥','Todas las materias registradas ya están en el plan','Registra materias nuevas en la sección Materias para poder agregarlas aquí.'))
+   :vacio('⚠','No se pudieron cargar las materias','Pulsa Actualizar para reintentar la conexión con la API.');
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias en el plan',valor:plan.length},{etiqueta:'Obligatorias',valor:obligatorias},{etiqueta:'Electivas',valor:plan.length-obligatorias}])}<section class="panel"><div class="panel-top"><div><h2>Plan de estudios · ${esc(nombrePrograma)} (${esc(idPrograma)})</h2><p>Materias agrupadas por semestre. Quitar una materia no afecta las matrículas, notas ni tareas ya guardadas</p></div><button type="button" class="secondary" id="volver-programas">← Volver a Programas</button></div><div class="lista-plan" id="lista-plan">${lista}</div></section><section class="panel"><div class="panel-top"><div><h2>Agregar materia al plan</h2><p>Solo aparecen las materias registradas que aún no están en este plan</p></div></div><form id="form-plan-add" ${hayMaterias&&fuera.length?'':'hidden'}>${formulario}</form></section>`;
+  $('#volver-programas').onclick=()=>{planDe=null;vistaCatalogo();};
+  // Quitar del plan: si la API responde 409, el mensaje se muestra tal cual
+  // (dice qué materia del mismo plan depende de ella como requisito)
+  $('#view').querySelectorAll('.plan-quitar').forEach(b=>b.onclick=async()=>{
+   b.disabled=true;b.textContent='Quitando…';
+   try{
+    await apiAuth(rutaMateria(b.dataset.id),{method:'DELETE'});
+    notice(`La materia ${b.dataset.id} (${b.dataset.nombre}) salió del plan.`,true);
+    await recarga();
+   }catch(error){notice(error.message);b.disabled=false;b.textContent='Quitar ✕';}
+  });
+  // Cambiar semestre (PUT): al terminar se recarga el plan con la nueva agrupación
+  $('#view').querySelectorAll('.plan-semestre').forEach(s=>s.onchange=async()=>{
+   const id=s.dataset.id,nuevo=Number(s.value);
+   try{
+    await apiAuth(rutaMateria(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({semestre:nuevo})});
+    notice(`Semestre de ${id} actualizado a ${nuevo}.`,true);
+    await recarga();
+   }catch(error){notice(error.message);await recarga();}
+  });
+  // Cambiar obligatoria ↔ electiva (PUT)
+  $('#view').querySelectorAll('.plan-tipo').forEach(b=>b.onclick=async()=>{
+   const id=b.dataset.id,nueva=b.dataset.obligatoria!=='true';
+   b.disabled=true;
+   try{
+    await apiAuth(rutaMateria(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({obligatoria:nueva})});
+    notice(`${id} ahora es ${nueva?'obligatoria':'electiva'}.`,true);
+    await recarga();
+   }catch(error){notice(error.message);b.disabled=false;}
+  });
+  // Agregar materia al plan (POST): el 409 de duplicada muestra el mensaje pedido
+  $('#form-plan-add').onsubmit=async e=>{
+   e.preventDefault();
+   const err=$('#plan-error');err.textContent='';
+   const idMateria=$('#plan-materia')?.value, semestre=Number($('#plan-semestre-nuevo')?.value);
+   const obligatoria=$('#plan-tipo-nuevo')?.value==='true';
+   if(!idMateria||!semestre)return;
+   const btn=$('#plan-agregar');btn.disabled=true;btn.textContent='Agregando…';
+   try{
+    await apiAuth(`/programas/${encodeURIComponent(idPrograma)}/plan`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_materia:idMateria,semestre,obligatoria})});
+    notice(`Materia ${idMateria} agregada al plan de ${nombrePrograma}.`,true);
+    await recarga();
+   }catch(error){err.textContent=error.status===409?'Esa materia ya está en el plan':error.message;btn.disabled=false;btn.textContent='Agregar al plan';}
+  };
+  animaLlegada($('#view'));
+ }catch(error){$('#view').innerHTML=vacio('⚠','No se pudo cargar el plan de estudios',error.message);}
+}
 
 // ====== Estudiante: Matricular (carrito) ======
 let carrito=new Set();
 async function vistaMatricular(){
  $('#refresh').hidden=false;
  if(SESION.rol!=='Estudiante'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de estudiante adecuada.');return;}
- $('#view').innerHTML=vacio('⏳','Cargando materias','Un momento, consultamos las materias de tu facultad.');
+ $('#view').innerHTML=vacio('⏳','Cargando materias','Un momento, consultamos el plan de estudios de tu programa.');
  try{
   const materias=await api(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/materias-disponibles`);
-  const opciones=materias.map(m=>`<label class="carrito-item"><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${m.creditos}"><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${m.creditos} créditos</span><span class="chip">${m.cupos} cupos</span><span class="chip">${esc(m.horario||'Sin horario')}</span></span></span></label>`).join('');
-  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel"><div class="panel-top"><div><h2>Materias de tu facultad</h2><p>Marca las que quieres matricular en el periodo 2026-2</p></div></div>${materias.length?`<div class="carrito">${opciones}</div>`:vacio('▥','Tu facultad no tiene materias disponibles','Cuando tu programa publique materias, aparecerán aquí para armar tu matrícula.')}<div class="panel-top"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted">Debe quedar entre 6 y 19</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
+  const formatoHorario=m=>{if(m.dia&&m.hora_inicio&&m.hora_fin){const hi=String(m.hora_inicio).slice(0,5),hf=String(m.hora_fin).slice(0,5);return `${esc(m.dia)} ${hi}-${hf}`;}return 'Sin horario';};
+  const opciones=materias.map(m=>`<label class="carrito-item"><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${m.creditos}"><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${m.creditos} créditos</span><span class="chip">${m.cupos} cupos</span><span class="chip">${formatoHorario(m)}</span><span class="chip chip-semestre">Semestre ${m.semestre}</span><span class="chip ${m.obligatoria?'chip-obligatoria':'chip-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span></span></span></label>`).join('');
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel"><div class="panel-top"><div><h2>Materias de tu plan de estudios</h2><p>Marca las que quieres matricular en el periodo 2026-2, de las que corresponden a tu programa y semestre</p></div></div>${materias.length?`<div class="carrito">${opciones}</div>`:vacio('▥','Tu programa aún no tiene plan de estudios cargado','Cuando tu programa cargue su plan de estudios, las materias aparecerán aquí para armar tu matrícula.')}<div class="panel-top"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted">Debe quedar entre 6 y 19</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
   const checkboxes=[...$('#view').querySelectorAll('.carrito-item input')];
   const total=()=>checkboxes.filter(c=>c.checked).reduce((s,c)=>s+Number(c.dataset.creditos),0);
   const pintaTotal=()=>{
@@ -457,12 +678,24 @@ async function vistaMatricular(){
   };
   checkboxes.forEach(c=>c.onchange=()=>{c.checked?carrito.add(c.value):carrito.delete(c.value);pintaTotal();});
   $('#confirmar-carrito').onclick=async()=>{
-   const seleccion=checkboxes.filter(c=>c.checked).map(c=>c.value);
-   try{
-    const res=await apiAuth('/matriculas/lote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:SESION.id_persona,periodo:'2026-2',id_materias:seleccion})});
-    notice(`Matrícula confirmada: ${res.matriculas.length} materias, ${res.total_creditos} créditos.`,true);
-    carrito.clear();await vistaMatricular();
-   }catch(error){notice(mensajeRol(error));}
+    const seleccion=checkboxes.filter(c=>c.checked).map(c=>c.value);
+    // 7C: detectar cruce de horario antes de enviar
+    const seleccionadas=materias.filter(m=>seleccion.includes(m.id_materia));
+    const conHorario=seleccionadas.filter(m=>m.dia&&m.hora_inicio&&m.hora_fin);
+    for(let i=0;i<conHorario.length;i++){
+      for(let j=i+1;j<conHorario.length;j++){
+        const a=conHorario[i],b=conHorario[j];
+        if(a.dia===b.dia&&String(a.hora_inicio).slice(0,5)<String(b.hora_fin).slice(0,5)&&String(b.hora_inicio).slice(0,5)<String(a.hora_fin).slice(0,5)){
+          notice(`Cruce de horario: '${a.nombre_curso}' (${a.id_materia}) y '${b.nombre_curso}' (${b.id_materia}) el ${a.dia}. Desmarca una para continuar.`);
+          return;
+        }
+      }
+    }
+    try{
+     const res=await apiAuth('/matriculas/lote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:SESION.id_persona,periodo:'2026-2',id_materias:seleccion})});
+     notice(`Matrícula confirmada: ${res.matriculas.length} materias, ${res.total_creditos} créditos.`,true);
+     carrito.clear();await vistaMatricular();
+    }catch(error){notice(mensajeRol(error));}
   };
   pintaTotal();
   animaLlegada($('#view'));
@@ -780,5 +1013,6 @@ $('#app-workspace').appendChild(btnTema);
 
 // ====== Refresh y navegación ======
 $('#refresh').onclick=async()=>{if(loading)return;loading=true;$('#refresh').disabled=true;notice('');await refreshCatalogos();loading=false;$('#refresh').disabled=false;render();};
-window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){const origen=current;current=destino;animarSeccion(destino,origen);}});
+window.addEventListener('hashchange',()=>{const hash=location.hash.slice(1);const valido=navItems().some(([k])=>k===hash);const destino=valido?hash:'resumen';if(SESION&&destino!==current){const origen=current;planDe=null;current=destino;animarSeccion(destino,origen);}});
 current='resumen';
+

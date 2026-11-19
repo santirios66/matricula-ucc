@@ -4,7 +4,9 @@
 # Reutiliza pdf_reportes.py; no escribe SQL nuevo.
 # ==========================================
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from fastapi.responses import FileResponse
 
 try:
@@ -59,11 +61,23 @@ def _verificar_permiso_pdf(cedula: str, sesion: dict):
 
 
 @router.get("/matricula/{cedula}", status_code=status.HTTP_200_OK)
-def descargar_pdf_matricula(cedula: str = Path(..., min_length=1), sesion: dict = Depends(autenticar)):
-    """Genera el recibo de matrícula y lo devuelve como archivo PDF (según rol)."""
+def descargar_pdf_matricula(
+    cedula: str = Path(..., min_length=1),
+    periodo: Optional[str] = Query(
+        default=None,
+        description="Periodo del recibo (p. ej. 2026-2). Si se omite, se usa el más reciente con matrículas.",
+    ),
+    sesion: dict = Depends(autenticar),
+):
+    """Genera el recibo de matrícula de UN periodo y lo devuelve como PDF (según rol)."""
     cedula = _cedula_limpia(cedula)
+    if periodo is not None and not periodo.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El periodo no puede estar vacío",
+        )
     _verificar_permiso_pdf(cedula, sesion)
-    ok, archivo_o_mensaje = generar_pdf_matricula(cedula)
+    ok, archivo_o_mensaje = generar_pdf_matricula(cedula, periodo.strip() if periodo else None)
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

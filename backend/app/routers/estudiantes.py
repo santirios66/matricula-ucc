@@ -10,9 +10,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 try:
+    from app.calculo_notas import calcular_notas_por_momento
     from app.database import obtener_conexion
     from app.seguridad_api import require_admin
 except ImportError:
+    from calculo_notas import calcular_notas_por_momento
     from database import obtener_conexion
     from seguridad_api import require_admin
 
@@ -58,7 +60,14 @@ def listar_estudiantes():
 
 @router.get("/{cedula}/materias-disponibles", status_code=status.HTTP_200_OK)
 def materias_disponibles(cedula: str):
-    """Materias de la facultad del programa del estudiante, para el carrito."""
+    """Materias del plan de estudios del programa del estudiante (V7), para el carrito.
+
+    Devuelve solo las materias del plan del programa del estudiante (no toda
+    la facultad), con el semestre del plan y el estado académico de cada una:
+    'Aprobada' (definitiva 3.0 o más en sus notas, registradas a mano o
+    calculadas desde las tareas con momento), 'Matriculada' (tiene matrícula
+    Activa en cualquier periodo) o 'Disponible'.
+    """
     cedula = cedula.strip()
     if not cedula:
         raise HTTPException(
@@ -69,8 +78,8 @@ def materias_disponibles(cedula: str):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT e.id_programa, p.id_facultad FROM estudiantes e "
-                "JOIN programas p ON p.id_programa = e.id_programa "
+                "SELECT e.id_programa, p.id_facultad, p.nombre_programa, p.plan_referencia "
+                "FROM estudiantes e JOIN programas p ON p.id_programa = e.id_programa "
                 "WHERE e.id_estudiante = %s",
                 (cedula,),
             )
@@ -80,15 +89,52 @@ def materias_disponibles(cedula: str):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No existe el estudiante con cédula '{cedula}'",
                 )
-            id_programa, id_facultad = fila
+            id_programa, id_facultad, nombre_programa, plan_referencia = fila
+            # Plan del programa del estudiante: ni materias de otros programas
+            # ni el resto de la facultad
             cur.execute(
-                "SELECT id_materia, nombre_curso, creditos, cupos, horario, id_profesor "
-                "FROM materias WHERE id_facultad = %s ORDER BY id_materia",
-                (id_facultad,),
+                "SELECT pe.id_materia, pe.semestre, pe.obligatoria, m.nombre_curso, "
+                "m.creditos, m.cupos, m.horario, m.id_profesor, "
+                "m.dia, m.hora_inicio, m.hora_fin "
+                "FROM plan_estudios pe JOIN materias m ON m.id_materia = pe.id_materia "
+                "WHERE pe.id_programa = %s "
+                "ORDER BY pe.semestre, m.nombre_curso, pe.id_materia",
+                (id_programa,),
             )
             filas = cur.fetchall()
-        return [
-            {
+            # Mejor definitiva por materia con notas registradas a mano
+            cur.execute(
+                "SELECT m.id_materia, MAX(n.definitiva) FROM notas n "
+                "JOIN matriculas m ON m.id_matricula = n.id_matricula "
+                "WHERE m.cedula = %s GROUP BY m.id_materia",
+                (cedula,),
+            )
+            definitiva_por_materia = {id_materia: float(definitiva) for id_materia, definitiva in cur.fetchall()}
+            # Matrículas del estudiante sin notas a mano: definitiva calculada
+            # desde las tareas con momento (misma regla de Mis notas)
+            calculos = calcular_notas_por_momento(cur, cedula)
+            for calculo in calculos.values():
+                if calculo["definitiva"] is not None:
+                    actual = definitiva_por_materia.get(calculo["id_materia"])
+                    if actual is None or calculo["definitiva"] > actual:
+                        definitiva_por_materia[calculo["id_materia"]] = calculo["definitiva"]
+            # Materias con matrícula Activa en cualquier periodo
+            cur.execute(
+                "SELECT DISTINCT id_materia FROM matriculas "
+                "WHERE cedula = %s AND estado = 'Activa'",
+                (cedula,),
+            )
+            matriculadas = {id_materia for (id_materia,) in cur.fetchall()}
+        respuesta = []
+        for id_materia, semestre, obligatoria, nombre_curso, creditos, cupos, horario, id_profesor, dia, hora_inicio, hora_fin in filas:
+            definitiva = definitiva_por_materia.get(id_materia)
+            if definitiva is not None and definitiva >= 3.0:
+                estado = "Aprobada"
+            elif id_materia in matriculadas:
+                estado = "Matriculada"
+            else:
+                estado = "Disponible"
+            respuesta.append({
                 "id_estudiante": cedula,
                 "id_programa": id_programa,
                 "id_facultad": id_facultad,
@@ -98,9 +144,15 @@ def materias_disponibles(cedula: str):
                 "cupos": cupos,
                 "horario": horario,
                 "id_profesor": id_profesor,
-            }
-            for id_materia, nombre_curso, creditos, cupos, horario, id_profesor in filas
-        ]
+                "semestre": semestre,
+                "obligatoria": obligatoria,
+                "dia": dia,
+                "hora_inicio": hora_inicio,
+                "hora_fin": hora_fin,
+                "estado": estado,
+                "definitiva": definitiva,
+            })
+        return respuesta
     finally:
         conn.close()
 

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 try:
     from app.routers.facultades import router as facultades_router
     from app.routers.programas import router as programas_router
+    from app.routers.plan import router as plan_router
     from app.routers.materias import router as materias_router
     from app.routers.profesores import router as profesores_router
     from app.routers.estudiantes import router as estudiantes_router
@@ -22,6 +23,7 @@ try:
 except ImportError:
     from routers.facultades import router as facultades_router
     from routers.programas import router as programas_router
+    from routers.plan import router as plan_router
     from routers.materias import router as materias_router
     from routers.profesores import router as profesores_router
     from routers.estudiantes import router as estudiantes_router
@@ -44,6 +46,7 @@ app.add_middleware(
 
 app.include_router(facultades_router)
 app.include_router(programas_router)
+app.include_router(plan_router)
 app.include_router(materias_router)
 app.include_router(profesores_router)
 app.include_router(estudiantes_router)
