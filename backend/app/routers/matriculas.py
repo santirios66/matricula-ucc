@@ -284,8 +284,10 @@ def crear_matricula(matricula: MatriculaCreate, sesion: dict = Depends(autentica
 def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(autenticar)):
     """Matricula varias materias del carrito en una sola transacción.
 
-    Valida rol, periodo vigente, que las materias pertenezcan al plan del
-    programa del estudiante, cupos, duplicados, requisitos previos y el
+    Valida rol, periodo vigente, que el estudiante no tenga ya una matrícula
+    activa en el periodo solicitado (una sola matrícula por periodo) ni una
+    matrícula en curso en otro periodo, que las materias pertenezcan al plan
+    del programa del estudiante, cupos, duplicados, requisitos previos y el
     total de créditos del periodo (entre 6 y 19). Si algo falla, no se
     guarda nada. Cuando todo pasa, crea la cabecera del lote (V9) con su
     radicado y todas las materias del carrito quedan con ese id_lote.
@@ -344,6 +346,66 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                     detail=f"No existe el estudiante con cédula '{cedula}'",
                 )
             id_programa, nombre_programa = fila_estudiante
+            # 1b. Ventana de matricula: solo se puede matricular antes de fecha_inicio.
+            # Desde fecha_inicio el periodo ya empezo y se bloquea con 409.
+            # (El check de rango completo fecha_inicio..fecha_fin ya ocurrio arriba
+            # para el caso de periodo vencido / fuera de rango; aqui refinamos
+            # la restriccion de pre-inicio.)
+            if hoy >= fecha_inicio:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"El periodo '{periodo}' ya empezo. "
+                        "Para cambios, usa adicion o cancelacion."
+                    ),
+                )
+            # 1c. Una sola matricula activa por periodo y bloqueo mientras el
+            # semestre este en curso (Parte 8). Se bloquea la fila del
+            # estudiante para que dos lotes concurrentes no puedan pasar estas
+            # reglas a la vez; despues se leen sus matriculas Activas junto con
+            # las fechas del periodo en el que quedaron registradas.
+            cur.execute(
+                "SELECT id_estudiante FROM estudiantes WHERE id_estudiante = %s FOR UPDATE",
+                (cedula,),
+            )
+            cur.execute(
+                "SELECT m.periodo, p.fecha_inicio, p.fecha_fin "
+                "FROM matriculas m "
+                "JOIN periodos p ON p.periodo = m.periodo "
+                "WHERE m.cedula = %s AND m.estado = 'Activa' "
+                "ORDER BY p.fecha_inicio, m.periodo",
+                (cedula,),
+            )
+            matriculas_activas = cur.fetchall()
+            if any(fila[0] == periodo for fila in matriculas_activas):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"El estudiante '{cedula}' ya tiene una matricula activa "
+                        f"en el periodo '{periodo}'. Para modificarla, gestiona los "
+                        "cambios mediante adicion o cancelacion de materias."
+                    ),
+                )
+            en_curso = next(
+                (
+                    (periodo_activo, fecha_fin_activa)
+                    for periodo_activo, fecha_inicio_activa, fecha_fin_activa in matriculas_activas
+                    if fecha_inicio_activa and fecha_fin_activa
+                    and fecha_inicio_activa <= hoy <= fecha_fin_activa
+                ),
+                None,
+            )
+            if en_curso is not None:
+                periodo_activo, fecha_fin_activa = en_curso
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"El estudiante '{cedula}' tiene una matricula en curso en "
+                        f"el periodo '{periodo_activo}' (finaliza el "
+                        f"{fecha_fin_activa}); no puede volver a matricular por lote "
+                        "hasta que termine el semestre actual."
+                    ),
+                )
             # 2. Sin repetidas dentro del mismo carrito
             if len(set(id_materias)) != len(id_materias):
                 raise HTTPException(
@@ -564,6 +626,164 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                 }
                 for fila in creadas
             ],
+        }
+    finally:
+        conn.close()
+
+
+def _verificar_ventana_periodo(cur, periodo: str, hoy):
+    """Verifica que hoy sea antes de fecha_inicio del periodo.
+
+    - Si el periodo no existe: 422 (igual que antes).
+    - Si hoy >= fecha_inicio y hoy <= fecha_fin (periodo en curso): 409.
+    - Si hoy > fecha_fin (periodo terminado): 422 fuera de rango (igual que antes).
+    Devuelve (fecha_inicio, fecha_fin) cuando la ventana esta abierta.
+    """
+    cur.execute(
+        "SELECT fecha_inicio, fecha_fin FROM periodos WHERE periodo = %s",
+        (periodo,),
+    )
+    fila = cur.fetchone()
+    if fila is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"El periodo '{periodo}' no existe",
+        )
+    fecha_inicio, fecha_fin = fila
+    if hoy > fecha_fin:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"El periodo '{periodo}' esta fuera del rango de matricula "
+                f"({fecha_inicio} a {fecha_fin}); hoy es {hoy}"
+            ),
+        )
+    if hoy >= fecha_inicio:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"El periodo '{periodo}' ya empezo. "
+                "Para cambios, usa adicion o cancelacion."
+            ),
+        )
+    return fecha_inicio, fecha_fin
+
+
+class MatriculaUpdate(BaseModel):
+    id_materias: list[str] = None
+    estado: str = None
+
+
+@router.delete("/{id_matricula}", status_code=status.HTTP_200_OK)
+def eliminar_matricula(id_matricula: str, sesion: dict = Depends(autenticar)):
+    """Elimina una matricula si el periodo aun no ha comenzado.
+
+    Solo el propio estudiante o el administrador pueden eliminarla.
+    Si el periodo ya empezo (hoy >= fecha_inicio), responde 409.
+    Si el periodo ya termino, responde 422 (fuera de rango).
+    """
+    conn = obtener_conexion()
+    try:
+        with conn.cursor() as cur:
+            # Obtener la matricula
+            cur.execute(
+                "SELECT cedula, periodo FROM matriculas WHERE id_matricula = %s",
+                (id_matricula,),
+            )
+            fila = cur.fetchone()
+            if fila is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No existe la matricula '{id_matricula}'",
+                )
+            cedula_mat, periodo_mat = fila
+
+            # Regla de rol: solo el propio estudiante o admin
+            if sesion["rol"] == ROL_ESTUDIANTE and cedula_mat != sesion["id_persona"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Solo puedes eliminar tu propia matricula",
+                )
+
+            # Regla de ventana: solo antes de fecha_inicio
+            hoy = date.today()
+            _verificar_ventana_periodo(cur, periodo_mat, hoy)
+
+            # Eliminar notas dependientes primero para no violar FK
+            cur.execute(
+                "DELETE FROM notas WHERE id_matricula = %s",
+                (id_matricula,),
+            )
+            cur.execute(
+                "DELETE FROM matriculas WHERE id_matricula = %s",
+                (id_matricula,),
+            )
+        conn.commit()
+        return {"eliminado": id_matricula, "periodo": periodo_mat}
+    finally:
+        conn.close()
+
+
+@router.put("/{id_matricula}", status_code=status.HTTP_200_OK)
+def actualizar_matricula(
+    id_matricula: str,
+    cambios: MatriculaUpdate,
+    sesion: dict = Depends(autenticar),
+):
+    """Cambia el estado de una matricula si el periodo aun no ha comenzado.
+
+    Solo el propio estudiante puede cambiar su estado; el admin puede
+    cambiar cualquier matricula. Si el periodo ya empezo, responde 409.
+    """
+    conn = obtener_conexion()
+    try:
+        with conn.cursor() as cur:
+            # Obtener la matricula
+            cur.execute(
+                "SELECT cedula, periodo, id_materia, creditos, fecha_matricula, estado "
+                "FROM matriculas WHERE id_matricula = %s",
+                (id_matricula,),
+            )
+            fila = cur.fetchone()
+            if fila is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No existe la matricula '{id_matricula}'",
+                )
+            cedula_mat, periodo_mat, id_materia_mat, creditos_mat, fecha_mat, estado_mat = fila
+
+            # Regla de rol: solo el propio estudiante o admin
+            if sesion["rol"] == ROL_ESTUDIANTE and cedula_mat != sesion["id_persona"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Solo puedes modificar tu propia matricula",
+                )
+
+            # Regla de ventana: solo antes de fecha_inicio
+            hoy = date.today()
+            _verificar_ventana_periodo(cur, periodo_mat, hoy)
+
+            # Aplicar cambios permitidos (solo estado por ahora)
+            nuevo_estado = cambios.estado if cambios.estado is not None else estado_mat
+            cur.execute(
+                "UPDATE matriculas SET estado = %s WHERE id_matricula = %s",
+                (nuevo_estado, id_matricula),
+            )
+            cur.execute(
+                "SELECT id_matricula, cedula, id_materia, creditos, periodo, fecha_matricula, estado "
+                "FROM matriculas WHERE id_matricula = %s",
+                (id_matricula,),
+            )
+            actualizada = cur.fetchone()
+        conn.commit()
+        return {
+            "id_matricula": actualizada[0],
+            "cedula": actualizada[1],
+            "id_materia": actualizada[2],
+            "creditos": actualizada[3],
+            "periodo": actualizada[4],
+            "fecha_matricula": actualizada[5],
+            "estado": actualizada[6],
         }
     finally:
         conn.close()

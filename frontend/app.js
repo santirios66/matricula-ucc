@@ -248,7 +248,7 @@ const modules = {
  estudiantes:{title:'Estudiantes',singular:'estudiante',icon:'♙',description:'Consulta y registra los estudiantes de la comunidad universitaria.',fields:[['id_estudiante','Cédula','text',20],['nombre','Nombres','text',60],['apellidos','Apellidos','text',60],['correo','Correo electrónico','email',100],['telefono','Teléfono','tel',20,null,true],['semestre','Semestre','number',1],['id_programa','Programa','select',null,'programas']]},
  profesores:{title:'Profesores',singular:'profesor',icon:'♧',description:'Organiza el equipo docente y sus datos de identificación.',fields:[['id_profesor','ID del profesor','text',20],['nombre','Nombres','text',60],['apellidos','Apellidos','text',60]]},
  facultades:{title:'Facultades',singular:'facultad',icon:'▦',description:'Administra las facultades que organizan la oferta académica.',fields:[['id_facultad','Código','text',10],['nombre_facultad','Nombre de la facultad','text',100]]},
- programas:{title:'Programas',singular:'programa',icon:'▤',description:'Conecta cada programa académico con su facultad.',fields:[['id_programa','Código','text',10],['nombre_programa','Nombre del programa','text',100],['id_facultad','Facultad','select',null,'facultades']]},
+ programas:{title:'Programas',singular:'programa',icon:'▤',description:'Conecta cada programa académico con su facultad.',fields:[['id_programa','Código','text',10],['nombre_programa','Nombre del programa','text',100],['id_facultad','Facultad','select',null,'facultades']],formOrder:['id_facultad','id_programa','nombre_programa']},
  materias:{title:'Materias',singular:'materia',icon:'▥',description:'Gestiona la oferta de cursos, sus horarios y profesores.',fields:[
     ['id_materia','Código','text',10],
     ['nombre_curso','Nombre del curso','text',100],
@@ -273,8 +273,36 @@ function horarioTexto(row){
  if(row.horario)return `<span class="chip-horario chip-horario-texto">${esc(row.horario)}</span>`;
  return '<span class="sin-horario">—</span>';
 }
-function table(key,rows){const m=modules[key];const conPlan=key==='programas';const conAcciones=key==='materias';const esMaterias=key==='materias';const campos=esMaterias?m.fields.filter(f=>!['dia','hora_inicio','hora_fin','horario'].includes(f[0])):m.fields;
- return `<div class="table-wrap"><table><thead><tr>${campos.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${esMaterias?'<th scope="col">Horario</th>':''}${conPlan?'<th scope="col">Plan de estudios</th>':''}${conAcciones?'<th scope="col">Acciones</th>':''}</tr></thead><tbody>${rows.map(row=>`<tr>${campos.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${esMaterias?`<td>${horarioTexto(row)}</td>`:''}${conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:''}${conAcciones?`<td class="acciones"><button type="button" class="btn-icono btn-editar" data-id="${esc(row.id_materia)}" title="Editar ${esc(row.nombre_curso)}" aria-label="Editar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="btn-icono btn-icono-peligro btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}" title="Eliminar ${esc(row.nombre_curso)}" aria-label="Eliminar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`:''}</tr>`).join('')}</tbody></table></div>`;}
+function cabeceraTabla(key,campos){
+ const esMaterias=key==='materias',conPlan=key==='programas';
+ return `<tr>${campos.map(f=>`<th scope="col">${esc(f[1])}</th>`).join('')}${esMaterias?'<th scope="col">Horario</th>':''}${conPlan?'<th scope="col">Plan de estudios</th>':''}${esMaterias?'<th scope="col">Acciones</th>':''}</tr>`;
+}
+function celdasFila(key,row,campos){
+ const esMaterias=key==='materias',conPlan=key==='programas';
+ const horario=esMaterias?`<td>${horarioTexto(row)}</td>`:'';
+ const plan=conPlan?`<td><button type="button" class="secondary btn-plan" data-id="${esc(row.id_programa)}">Plan de estudios</button></td>`:'';
+ const acciones=esMaterias?`<td class="acciones"><button type="button" class="btn-icono btn-editar" data-id="${esc(row.id_materia)}" title="Editar ${esc(row.nombre_curso)}" aria-label="Editar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button><button type="button" class="btn-icono btn-icono-peligro btn-eliminar" data-id="${esc(row.id_materia)}" data-nombre="${esc(row.nombre_curso)}" title="Eliminar ${esc(row.nombre_curso)}" aria-label="Eliminar ${esc(row.nombre_curso)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>`:'';
+ return `<tr>${campos.map((f,i)=>`<td>${i===0?`<span class="id">${esc(row[f[0]])}</span>`:esc(display(row,f)??'—')}</td>`).join('')}${horario}${plan}${acciones}</tr>`;
+}
+function table(key,rows){
+ const m=modules[key],esMaterias=key==='materias';
+ const campos=esMaterias?m.fields.filter(f=>!['dia','hora_inicio','hora_fin','horario'].includes(f[0])):m.fields;
+ return `<div class="table-wrap"><table><thead>${cabeceraTabla(key,campos)}</thead><tbody>${rows.map(row=>celdasFila(key,row,campos)).join('')}</tbody></table></div>`;
+}
+// Programas: una tabla con un encabezado por facultad y sus programas debajo.
+function tableProgramas(rows){
+ const campos=modules.programas.fields.filter(f=>f[0]!=='id_facultad');
+ const grupos=new Map();
+ rows.forEach(row=>{const id=row.id_facultad||'';if(!grupos.has(id))grupos.set(id,[]);grupos.get(id).push(row);});
+ const facultades=data.facultades||[];
+ const bloques=[...grupos.entries()].sort(([a],[b])=>String(a).localeCompare(String(b),'es')).map(([id,filas])=>{
+  const f=facultades.find(x=>x.id_facultad===id);
+  const nombre=f?.nombre_facultad||'Sin facultad';
+  const titulo=/^facultad\b/i.test(nombre)?nombre:`Facultad de ${nombre}`;
+  return `<tbody class="grupo-facultad"><tr class="grupo-facultad-fila"><th colspan="${campos.length+1}" scope="colgroup"><div class="grupo-contenido"><span class="grupo-icono" aria-hidden="true">▦</span><span class="grupo-titulo">${esc(titulo)}</span><span class="grupo-codigo">· ${esc(id)}</span><span class="grupo-cuenta">${filas.length} ${filas.length===1?'programa':'programas'}</span></div></th></tr>${filas.map(row=>celdasFila('programas',row,campos)).join('')}</tbody>`;
+ }).join('');
+ return `<div class="table-wrap"><table class="tabla-programas"><thead>${cabeceraTabla('programas',campos)}</thead>${bloques}</table></div>`;
+}
 
 // ====== Render principal ======
 function go(key){
@@ -413,8 +441,11 @@ async function vistaCatalogo(){
  if(!m){$('#view').innerHTML=vacio('◈','Pantalla no disponible','Vuelve al resumen y elige una sección del menú.');return;}
  if(key==='programas'&&planDe){vistaPlanPrograma(planDe);return;}
  $('#refresh').hidden=false;
- $('#view').innerHTML=`<div id="franja-zone"></div><section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…"><span class="count" id="count"></span></div><div id="rows"></div></section>`;
- $('#new').onclick=()=>openForm();$('#search').oninput=e=>renderRows(e.target.value);
+ const conFiltro=key==='programas'||key==='materias';
+ $('#view').innerHTML=`<div id="franja-zone"></div><section class="panel"><div class="panel-top"><div><h2>Directorio de ${m.title.toLowerCase()}</h2><p>Información registrada en el sistema académico</p></div><button id="new">+ Registrar ${m.singular}</button></div><div class="toolbar"><input id="search" type="search" aria-label="Buscar registros" placeholder="Buscar…">${conFiltro?`<label class="filtro-facultad" for="filtro-facultad"><span>Facultad</span><select id="filtro-facultad" aria-label="Filtrar por facultad"><option value="">Todas las facultades</option></select></label>`:''}<span class="count" id="count"></span></div><div id="rows"></div></section>`;
+ $('#new').onclick=()=>openForm();
+ $('#search').oninput=e=>renderRows(e.target.value);
+ if(conFiltro)$('#filtro-facultad').onchange=()=>renderRows();
  renderRows();
  await asegurarCatalogos();
  if(current!==key) return;
@@ -422,13 +453,29 @@ async function vistaCatalogo(){
  renderRows();
  animaLlegada($('#rows'));
 }
-function renderRows(query=''){
+// Rellena el filtro con las facultades cargadas, conservando la opción elegida.
+function pintarFiltroFacultad(){
+ const sel=$('#filtro-facultad');if(!sel)return;
+ const actual=sel.value;
+ const opciones=(data.facultades||[]).slice().sort((a,b)=>String(a.id_facultad).localeCompare(String(b.id_facultad),'es')).map(f=>`<option value="${esc(f.id_facultad)}">${esc(f.id_facultad)} · ${esc(f.nombre_facultad)}</option>`).join('');
+ sel.innerHTML=`<option value="">Todas las facultades</option>${opciones}`;
+ if(actual&&[...sel.options].some(o=>o.value===actual))sel.value=actual;
+}
+function renderRows(query){
  const key=current, area=$('#rows');if(!area)return;
+ if(query===undefined)query=$('#search')?.value??'';
  if(errors[key]){area.innerHTML=vacio('⚠','No se pudieron cargar los datos','Pulsa Actualizar para reintentar la conexión con la API.');return;}
  if(!data[key]){area.innerHTML=vacio('⏳','Cargando registros','Un momento, consultamos los datos del sistema académico.');return;}
- const all=data[key], q=query.toLocaleLowerCase('es'), rows=all.filter(r=>modules[key].fields.some(f=>String(display(r,f)??'').toLocaleLowerCase('es').includes(q)));
+ pintarFiltroFacultad();
+ const all=data[key], q=String(query).toLocaleLowerCase('es');
+ const fac=$('#filtro-facultad')?.value||'';
+ const rows=all.filter(r=>{
+  const coincide=modules[key].fields.some(f=>String(display(r,f)??'').toLocaleLowerCase('es').includes(q));
+  return coincide&&(!fac||String(r.id_facultad||'')===fac);
+ });
  $('#count').textContent=`${rows.length} de ${all.length} registros`;
- area.innerHTML=rows.length?table(key,rows):(q?vacio('⌕','Sin coincidencias',`Ningún registro coincide con "${query}". Prueba con otro término.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
+ const detalle=q&&fac?`la búsqueda "${query}" en la facultad elegida`:fac?'la facultad elegida':`la búsqueda "${query}"`;
+ area.innerHTML=rows.length?(key==='programas'?tableProgramas(rows):table(key,rows)):((q||fac)?vacio('⌕','Sin coincidencias',`Ningún registro coincide con ${detalle}. Prueba con otro filtro.`):vacio('▦',`Todavía no hay ${modules[key].title.toLowerCase()}`,`Crea el primer ${modules[key].singular} con el botón "+ Registrar ${modules[key].singular}" para empezar.`));
  area.querySelectorAll('.btn-plan').forEach(b=>b.onclick=()=>{planDe=b.dataset.id;vistaPlanPrograma(b.dataset.id);});
   area.querySelectorAll('.btn-editar').forEach(b=>b.onclick=async()=>{
     try{
@@ -534,7 +581,9 @@ function openForm(idMateria){
  }
  const esMaterias=current==='materias';
  const camposHorario=['dia','hora_inicio','hora_fin','horario'];
- $('#fields').innerHTML=m.fields.map(([key,label,type,limit,source,optional])=>{
+ // En Programas la facultad va primero: es la decisión que ordena el resto.
+ const camposFormulario=m.formOrder?m.formOrder.map(k=>m.fields.find(f=>f[0]===k)).filter(Boolean):m.fields;
+ $('#fields').innerHTML=camposFormulario.map(([key,label,type,limit,source,optional])=>{
   if(esMaterias&&camposHorario.includes(key))return '';
   let control;
   if(type==='select'){
@@ -603,12 +652,20 @@ async function vistaPlanPrograma(idPrograma){
   // Agrupadas por semestre (1 a 10): solo los semestres que tienen materias
   const grupos=SEMESTRES.map(n=>({n,filas:plan.filter(f=>f.semestre===n)})).filter(g=>g.filas.length);
   const lista=plan.length?grupos.map(g=>`<section class="plan-grupo"><h3>Semestre ${g.n}<span class="count">· ${g.filas.length} ${g.filas.length===1?'materia':'materias'}</span></h3>${g.filas.map(item).join('')}</section>`).join(''):vacio('▤','Este programa aún no tiene materias en su plan','Agrega la primera con el formulario "Agregar materia al plan" de abajo.');
-  const opciones=fuera.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
+  const facultadInicial=programa?.id_facultad||'';
+  const facultades=data.facultades||[];
+  const facultadElegida=facultades.some(f=>f.id_facultad===facultadInicial)?facultadInicial:(facultades[0]?.id_facultad||facultadInicial);
+  const opcionesFacultad=facultades.length
+   ?facultades.map(f=>`<option value="${esc(f.id_facultad)}"${f.id_facultad===facultadElegida?' selected':''}>${esc(relatedLabel('facultades',f.id_facultad))}</option>`).join('')
+   :`<option value="${esc(facultadInicial)}">${esc(facultadInicial||'Sin facultades registradas')}</option>`;
+  const opcionesMateria=idFacultad=>fuera.filter(m=>m.id_facultad===idFacultad).map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
+  const opciones=opcionesMateria(facultadElegida);
+  const sinMaterias=!opciones;
   const formulario=hayMaterias
-   ?(fuera.length?`<div class="fields"><div><label for="plan-materia">Materia *</label><select id="plan-materia" required>${opciones}</select></div><div><label for="plan-semestre-nuevo">Semestre *</label><select id="plan-semestre-nuevo" required>${SEMESTRES.map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div><div><label for="plan-tipo-nuevo">Tipo</label><select id="plan-tipo-nuevo"><option value="true">Obligatoria</option><option value="false">Electiva</option></select></div></div><p id="plan-error" role="alert"></p><div class="form-actions"><button type="submit" id="plan-agregar">Agregar al plan</button></div>`
+   ?(fuera.length?`<div class="fields"><div><label for="plan-facultad">Facultad *</label><select id="plan-facultad" required>${opcionesFacultad}</select></div><div><label for="plan-materia">Materia *</label><select id="plan-materia" required>${opciones||'<option value="">No hay materias disponibles en esta facultad</option>'}</select><p class="ayuda-plan" id="plan-sin-materias"${sinMaterias?'':' hidden'}>Todas las materias de esta facultad ya están en el plan.</p></div><div><label for="plan-semestre-nuevo">Semestre *</label><select id="plan-semestre-nuevo" required>${SEMESTRES.map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div><div><label for="plan-tipo-nuevo">Tipo</label><select id="plan-tipo-nuevo"><option value="true">Obligatoria</option><option value="false">Electiva</option></select></div></div><p id="plan-error" role="alert"></p><div class="form-actions"><button type="submit" id="plan-agregar"${sinMaterias?' disabled':''}>Agregar al plan</button></div>`
    :vacio('▥','Todas las materias registradas ya están en el plan','Registra materias nuevas en la sección Materias para poder agregarlas aquí.'))
    :vacio('⚠','No se pudieron cargar las materias','Pulsa Actualizar para reintentar la conexión con la API.');
-  $('#view').innerHTML=`${franja([{etiqueta:'Materias en el plan',valor:plan.length},{etiqueta:'Obligatorias',valor:obligatorias},{etiqueta:'Electivas',valor:plan.length-obligatorias}])}<section class="panel"><div class="panel-top"><div><h2>Plan de estudios · ${esc(nombrePrograma)} (${esc(idPrograma)})</h2><p>Materias agrupadas por semestre. Quitar una materia no afecta las matrículas, notas ni tareas ya guardadas</p></div><button type="button" class="secondary" id="volver-programas">← Volver a Programas</button></div><div class="lista-plan" id="lista-plan">${lista}</div></section><section class="panel"><div class="panel-top"><div><h2>Agregar materia al plan</h2><p>Solo aparecen las materias registradas que aún no están en este plan</p></div></div><form id="form-plan-add" ${hayMaterias&&fuera.length?'':'hidden'}>${formulario}</form></section>`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias en el plan',valor:plan.length},{etiqueta:'Obligatorias',valor:obligatorias},{etiqueta:'Electivas',valor:plan.length-obligatorias}])}<section class="panel"><div class="panel-top"><div><h2>Plan de estudios · ${esc(nombrePrograma)} (${esc(idPrograma)})</h2><p>Materias agrupadas por semestre. Quitar una materia no afecta las matrículas, notas ni tareas ya guardadas</p></div><button type="button" class="secondary" id="volver-programas">← Volver a Programas</button></div><div class="lista-plan" id="lista-plan">${lista}</div></section><section class="panel"><div class="panel-top"><div><h2>Agregar materia al plan</h2><p>Elige la facultad y solo verás sus materias que aún no están en este plan</p></div></div><form id="form-plan-add" ${hayMaterias&&fuera.length?'':'hidden'}>${formulario}</form></section>`;
   $('#volver-programas').onclick=()=>{planDe=null;vistaCatalogo();};
   // Quitar del plan: si la API responde 409, el mensaje se muestra tal cual
   // (dice qué materia del mismo plan depende de ella como requisito)
@@ -639,6 +696,16 @@ async function vistaPlanPrograma(idPrograma){
     await recarga();
    }catch(error){notice(error.message);b.disabled=false;}
   });
+  // La facultad elegida filtra las materias que todavía pueden entrar al plan
+  const selectorFacultad=$('#plan-facultad');
+  if(selectorFacultad)selectorFacultad.onchange=()=>{
+   const lista=fuera.filter(m=>m.id_facultad===selectorFacultad.value);
+   const selectorMateria=$('#plan-materia');
+   selectorMateria.innerHTML=lista.length?opcionesMateria(selectorFacultad.value):'<option value="">No hay materias disponibles en esta facultad</option>';
+   const aviso=$('#plan-sin-materias');if(aviso)aviso.hidden=lista.length>0;
+   const btn=$('#plan-agregar');if(btn)btn.disabled=!lista.length;
+   const err=$('#plan-error');if(err)err.textContent='';
+  };
   // Agregar materia al plan (POST): el 409 de duplicada muestra el mensaje pedido
   $('#form-plan-add').onsubmit=async e=>{
    e.preventDefault();
@@ -657,47 +724,217 @@ async function vistaPlanPrograma(idPrograma){
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudo cargar el plan de estudios',error.message);}
 }
 
-// ====== Estudiante: Matricular (carrito) ======
+// ====== Estudiante: Matricular (tablero por semestre + lista) ======
+// El tablero es la vista por defecto; la lista conserva el carrito de siempre.
 let carrito=new Set();
+let vistaMaterias='tablero';
+function formatoHorario(m){
+ if(m.dia&&m.hora_inicio&&m.hora_fin)return `${m.dia} ${String(m.hora_inicio).slice(0,5)}–${String(m.hora_fin).slice(0,5)}`;
+ return 'Sin horario';
+}
+function hayCruceHorario(a,b){
+ return !!(a&&b&&a.dia&&b.dia&&a.hora_inicio&&a.hora_fin&&b.hora_inicio&&b.hora_fin&&a.dia===b.dia&&String(a.hora_inicio).slice(0,5)<String(b.hora_fin).slice(0,5)&&String(b.hora_inicio).slice(0,5)<String(a.hora_fin).slice(0,5));
+}
+// materias-disponibles entrega requisitos_faltantes como
+// [{id_materia, nombre_curso}]; se muestran nombre y código del requisito.
+function nombreRequisito(r){
+ if(typeof r==='string')return r;
+ const nombre=r?.nombre_requisito||r?.nombre_curso;
+ const id=r?.id_requisito||r?.id_materia;
+ if(nombre&&id)return `${nombre} (${id})`;
+ return nombre||id||'';
+}
+function requisitosFaltantes(m){
+ const directos=Array.isArray(m.requisitos_faltantes)?m.requisitos_faltantes:[];
+ const nombres=directos.map(nombreRequisito).filter(Boolean);
+ if(nombres.length)return nombres;
+ if(m.requisito_faltante)return [String(m.requisito_faltante)];
+ if(Array.isArray(m.requisitos))return m.requisitos.filter(r=>r&&(r.aprobada===false||r.cumplido===false)).map(nombreRequisito).filter(Boolean);
+ return [];
+}
+function estadoMateria(m){
+ const faltan=requisitosFaltantes(m);
+ if(m.estado==='Aprobada')return {clase:'aprobada',texto:'Aprobada',faltan};
+ if(m.estado==='Matriculada')return {clase:'matriculada',texto:'Matriculada',faltan};
+ if(m.bloqueada===true||/bloquead/i.test(String(m.estado||''))||faltan.length)return {clase:'bloqueada',texto:'Bloqueada por requisito',faltan};
+ return {clase:'disponible',texto:m.estado||'Disponible',faltan};
+}
+function esMateriaBloqueada(m){return estadoMateria(m).clase==='bloqueada';}
+function avisoBloqueo(m){
+ const faltan=requisitosFaltantes(m);
+ notice(`'${m.nombre_curso}' está bloqueada por requisito${faltan.length?`: falta ${faltan.join(', ')}`:''}.`);
+}
 async function vistaMatricular(){
  $('#refresh').hidden=false;
  if(SESION.rol!=='Estudiante'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de estudiante adecuada.');return;}
  $('#view').innerHTML=vacio('⏳','Cargando materias','Un momento, consultamos el plan de estudios de tu programa.');
  try{
-  const materias=await api(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/materias-disponibles`);
-  const formatoHorario=m=>{if(m.dia&&m.hora_inicio&&m.hora_fin){const hi=String(m.hora_inicio).slice(0,5),hf=String(m.hora_fin).slice(0,5);return `${esc(m.dia)} ${hi}-${hf}`;}return 'Sin horario';};
-  const opciones=materias.map(m=>`<label class="carrito-item"><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${m.creditos}"><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${m.creditos} créditos</span><span class="chip">${m.cupos} cupos</span><span class="chip">${formatoHorario(m)}</span><span class="chip chip-semestre">Semestre ${m.semestre}</span><span class="chip ${m.obligatoria?'chip-obligatoria':'chip-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span></span></span></label>`).join('');
-  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel"><div class="panel-top"><div><h2>Materias de tu plan de estudios</h2><p>Marca las que quieres matricular en el periodo 2026-2, de las que corresponden a tu programa y semestre</p></div></div>${materias.length?`<div class="carrito">${opciones}</div>`:vacio('▥','Tu programa aún no tiene plan de estudios cargado','Cuando tu programa cargue su plan de estudios, las materias aparecerán aquí para armar tu matrícula.')}<div class="panel-top"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted">Debe quedar entre 6 y 19</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
-  const checkboxes=[...$('#view').querySelectorAll('.carrito-item input')];
-  const total=()=>checkboxes.filter(c=>c.checked).reduce((s,c)=>s+Number(c.dataset.creditos),0);
+  const [materias,periodos]=await Promise.all([
+   api(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/materias-disponibles`),
+   api('/periodos/'),
+  ]);
+  const porId=new Map(materias.map(m=>[m.id_materia,m]));
+  const hoy=new Date();
+  const periodoAbierto=(periodos||[]).find(p=>{
+   const ini=p.fecha_inicio?new Date(p.fecha_inicio+'T00:00:00'):null;
+   const fin=p.fecha_fin?new Date(p.fecha_fin+'T23:59:59'):null;
+   return ini&&fin&&hoy>=ini&&hoy<=fin;
+  });
+  const periodoMatricula=periodoAbierto?periodoAbierto.periodo:null;
+  carrito=new Set([...carrito].filter(id=>porId.has(id)&&!esMateriaBloqueada(porId.get(id))));
+  const semestreDe=m=>{const n=Number(m.semestre);return Number.isFinite(n)?n:0;};
+  const semestres=[...new Set(materias.map(semestreDe))].sort((a,b)=>a-b);
+  const tarjeta=m=>{
+   const ev=estadoMateria(m),bloq=ev.clase==='bloqueada',enCarrito=!bloq&&carrito.has(m.id_materia),faltan=ev.faltan.join(', ');
+   const etiqueta=`${m.id_materia} ${m.nombre_curso}, ${m.creditos} créditos, ${m.obligatoria?'obligatoria':'electiva'}, ${ev.texto}${bloq&&faltan?`. Falta ${faltan}`:''}. ${bloq?'No se puede agregar al carrito.':(enCarrito?'En el carrito':'Presiona Enter o espacio para agregar al carrito')}`;
+   return `<article class="materia-card estado-${ev.clase}${enCarrito?' en-carrito':''}${bloq?' bloqueada':''}" data-id="${esc(m.id_materia)}" data-bloqueada="${bloq?'true':'false'}" draggable="${bloq?'false':'true'}" tabindex="0" role="button" aria-pressed="${enCarrito?'true':'false'}" aria-disabled="${bloq?'true':'false'}" aria-label="${esc(etiqueta)}">
+    <div class="materia-card-top"><span class="chip chip-codigo">${esc(m.id_materia)}</span>${bloq?'<span class="materia-card-candado" title="Materia bloqueada por requisito" aria-hidden="true">🔒 Bloqueada</span>':''}<span class="materia-card-creditos">${esc(m.creditos)} créditos</span><span class="materia-card-marca" aria-hidden="true">${enCarrito?'✓':''}</span></div>
+    <strong class="materia-card-nombre">${esc(m.nombre_curso)}</strong>
+    <div class="materia-card-datos">
+     <div class="materia-dato"><span class="materia-dato-et">Tipo</span><span class="materia-dato-val ${m.obligatoria?'dato-obligatoria':'dato-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span></div>
+     <div class="materia-dato"><span class="materia-dato-et">Horario</span><span class="materia-dato-val">${esc(formatoHorario(m))}</span></div>
+    </div>
+    <div class="materia-card-pie">
+     <div class="materia-card-estado"><span class="estado-punto" aria-hidden="true"></span><span>${esc(ev.texto)}</span>${bloq&&faltan?`<span class="requisito-falta">Falta: ${esc(faltan)}</span>`:''}</div>
+     <span class="materia-card-cta" aria-hidden="true">${bloq?'🔒 Bloqueada':(enCarrito?'✓ En carrito':'+ Agregar')}</span>
+    </div>
+   </article>`;
+  };
+  const itemLista=m=>{
+   const ev=estadoMateria(m),bloq=ev.clase==='bloqueada',enCarrito=!bloq&&carrito.has(m.id_materia),faltan=ev.faltan.join(', ');
+   return `<label class="carrito-item${bloq?' bloqueada':''}"${bloq?' title="Materia bloqueada por requisito"':''}><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${esc(m.creditos)}"${enCarrito?' checked':''}${bloq?' disabled aria-disabled="true"':''}><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${esc(m.creditos)} créditos</span><span class="chip">${esc(m.cupos)} cupos</span><span class="chip">${esc(formatoHorario(m))}</span><span class="chip chip-semestre">Semestre ${esc(m.semestre)}</span><span class="chip ${m.obligatoria?'chip-obligatoria':'chip-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span><span class="chip chip-estado-${ev.clase}">${bloq?'🔒 ':''}${esc(ev.texto)}</span>${bloq?`<span class="requisito-falta">Falta: ${esc(faltan||'requisito')}</span>`:''}</span></span></label>`;
+  };
+  const tablero=semestres.map(n=>{
+   const lista=materias.filter(m=>semestreDe(m)===n);
+   return `<section class="tablero-columna"><header class="tablero-columna-cab"><h3>${n?`Semestre ${n}`:'Sin semestre'}</h3><span class="count">${lista.length} ${lista.length===1?'materia':'materias'}</span></header><div class="tablero-cards">${lista.map(tarjeta).join('')}</div></section>`;
+  }).join('');
+  const opciones=materias.map(itemLista).join('');
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel matricular-panel"><div class="panel-top matricular-top"><div><h2>Materias de tu plan de estudios</h2><p>${materias.length?'Elige por semestre en el tablero. Arrastra una tarjeta a "Tu carrito" o haz clic en ella.':'Materias del plan de tu programa.'}</p></div>${materias.length?`<div class="vista-switch" role="group" aria-label="Vista de materias"><button type="button" data-vista="tablero" class="${vistaMaterias==='tablero'?'activo':''}" aria-pressed="${vistaMaterias==='tablero'}">▦ Tablero</button><button type="button" data-vista="lista" class="${vistaMaterias==='lista'?'activo':''}" aria-pressed="${vistaMaterias==='lista'}">☰ Lista</button></div>`:''}</div>${materias.length?`<div class="matricular-cuerpo"><div class="vista-tablero" id="vista-tablero"${vistaMaterias==='tablero'?'':' hidden'}><div class="tablero-wrap"><div class="tablero-columnas">${tablero}</div><aside class="carrito-zona" id="carrito-zona" aria-label="Tu carrito"><div class="carrito-zona-cab"><h3>Tu carrito</h3><span class="carrito-cuenta" id="carrito-cuenta">0</span></div><div class="carrito-zona-lista" id="carrito-zona-lista"></div><p class="carrito-pista">Entre 6 y 19 créditos en total para confirmar.</p></aside></div></div><div class="vista-lista" id="vista-lista"${vistaMaterias==='lista'?'':' hidden'}><div class="carrito">${opciones}</div></div></div>`:vacio('▥','Tu programa aún no tiene plan de estudios cargado','Cuando tu programa cargue su plan de estudios, las materias aparecerán aquí para armar tu matrícula.')}<div class="panel-top matricular-pie"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted" id="periodo-matricula">${periodoMatricula?`Periodo ${esc(periodoMatricula)} · entre 6 y 19 créditos`:'No hay un periodo de matrícula abierto'}</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
+  const seleccionadas=()=>materias.filter(m=>carrito.has(m.id_materia));
+  const total=()=>seleccionadas().reduce((s,m)=>s+Number(m.creditos||0),0);
   const pintaTotal=()=>{
-   const t=total(), enRango=t>=6&&t<=19;
-   const el=$('#total-creditos');el.textContent=`Total: ${t} créditos`;el.style.color=enRango?'#2E8B57':'#b02a37';
-   const ind=$('#ind-creditos');if(ind){ind.textContent=`${t} créditos`;const caja=ind.closest('.indicador');caja.classList.toggle('ok',enRango);caja.classList.toggle('malo',!enRango);}
-   $('#confirmar-carrito').disabled=!enRango;
+   const t=total(),enRango=t>=6&&t<=19;
+   const el=$('#total-creditos');if(el){el.textContent=`Total: ${t} créditos`;el.style.color=enRango?'#2E8B57':'#b02a37';}
+   const ind=$('#ind-creditos');if(ind){ind.textContent=`${t} créditos`;const caja=ind.closest('.indicador');if(caja){caja.classList.toggle('ok',enRango);caja.classList.toggle('malo',!enRango);}}
+   const btn=$('#confirmar-carrito');if(btn)btn.disabled=!enRango||!periodoMatricula;
   };
-  checkboxes.forEach(c=>c.onchange=()=>{c.checked?carrito.add(c.value):carrito.delete(c.value);pintaTotal();});
+  const pintaCarrito=()=>{
+   const lista=$('#carrito-zona-lista'),cuenta=$('#carrito-cuenta');
+   if(!lista)return;
+   const elegidas=seleccionadas();
+   if(cuenta)cuenta.textContent=String(elegidas.length);
+   lista.innerHTML=elegidas.length?elegidas.map(m=>`<div class="carrito-mini"><div class="carrito-mini-info"><span class="chip">${esc(m.id_materia)}</span><strong>${esc(m.nombre_curso)}</strong><span class="carrito-mini-meta">${esc(m.creditos)} créditos · ${esc(formatoHorario(m))}</span></div><button type="button" class="carrito-quitar" data-quitar="${esc(m.id_materia)}" aria-label="Quitar ${esc(m.nombre_curso)} del carrito" title="Quitar">✕</button></div>`).join(''):'<div class="carrito-vacio"><strong>Aún no has agregado materias</strong><span>Haz clic en una tarjeta o arrástrala hasta aquí.</span></div>';
+   lista.querySelectorAll('[data-quitar]').forEach(b=>b.onclick=e=>{e.stopPropagation();carrito.delete(b.dataset.quitar);sincronizar();});
+  };
+  const actualizarCruces=()=>{
+   const dentro=seleccionadas();
+   document.querySelectorAll('.materia-card').forEach(card=>{
+    const m=porId.get(card.dataset.id);if(!m)return;
+    card.classList.toggle('cruce',dentro.some(x=>x.id_materia!==m.id_materia&&hayCruceHorario(x,m)));
+   });
+   document.querySelectorAll('.carrito-item').forEach(label=>{
+    const m=porId.get(label.querySelector('input')?.value);if(!m)return;
+    label.classList.toggle('cruce',dentro.some(x=>x.id_materia!==m.id_materia&&hayCruceHorario(x,m)));
+   });
+  };
+  const sincronizar=()=>{
+   document.querySelectorAll('.carrito-item input').forEach(c=>{c.checked=!c.disabled&&carrito.has(c.value);});
+   document.querySelectorAll('.materia-card').forEach(card=>{
+    const m=porId.get(card.dataset.id);if(!m)return;
+    const bloq=esMateriaBloqueada(m),on=!bloq&&carrito.has(card.dataset.id);
+    card.classList.toggle('en-carrito',on);
+    card.setAttribute('aria-pressed',on?'true':'false');
+    const marca=card.querySelector('.materia-card-marca');
+    if(marca)marca.textContent=on?'✓':'';
+    const cta=card.querySelector('.materia-card-cta');
+    if(cta)cta.textContent=bloq?'🔒 Bloqueada':(on?'✓ En carrito':'+ Agregar');
+   });
+   actualizarCruces();
+   pintaCarrito();
+   pintaTotal();
+  };
+  const alternar=id=>{
+   const m=porId.get(id);if(!m)return;
+   if(esMateriaBloqueada(m)){avisoBloqueo(m);return;}
+   if(carrito.has(id))carrito.delete(id);else carrito.add(id);
+   sincronizar();
+  };
+  document.querySelectorAll('.carrito-item input').forEach(c=>c.onchange=()=>{
+   const m=porId.get(c.value);
+   if(!m||esMateriaBloqueada(m)){c.checked=false;if(m)avisoBloqueo(m);return;}
+   if(c.checked)carrito.add(c.value);else carrito.delete(c.value);
+   sincronizar();
+  });
+  document.querySelectorAll('.materia-card').forEach(card=>{
+   card.onclick=()=>alternar(card.dataset.id);
+   card.onkeydown=e=>{
+    if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){e.preventDefault();alternar(card.dataset.id);}
+   };
+   card.ondragstart=e=>{
+    const m=porId.get(card.dataset.id);
+    if(!m||esMateriaBloqueada(m)){e.preventDefault();return;}
+    e.dataTransfer.setData('text/plain',card.dataset.id);
+    e.dataTransfer.effectAllowed='copy';
+    card.classList.add('arrastrando');
+    const zona=$('#carrito-zona');if(zona)zona.classList.add('drop-preparado');
+   };
+   card.ondragend=()=>{
+    card.classList.remove('arrastrando');
+    const zona=$('#carrito-zona');if(zona)zona.classList.remove('drop-preparado','drop-activo');
+   };
+  });
+  const zona=$('#carrito-zona');
+  if(zona){
+   zona.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';zona.classList.add('drop-activo');};
+   zona.ondragleave=()=>zona.classList.remove('drop-activo');
+   zona.ondrop=e=>{
+    e.preventDefault();zona.classList.remove('drop-activo');
+    const id=e.dataTransfer.getData('text/plain'),m=porId.get(id);
+    if(!m)return;
+    if(esMateriaBloqueada(m)){avisoBloqueo(m);return;}
+    if(carrito.has(id)){notice('Esa materia ya está en tu carrito.');return;}
+    carrito.add(id);sincronizar();
+    notice(`${m.nombre_curso} agregada al carrito.`,true);
+   };
+  }
+  const botonesVista=[...document.querySelectorAll('.vista-switch [data-vista]')];
+  const aplicarVista=(animar=true)=>{
+   botonesVista.forEach(b=>{const on=b.dataset.vista===vistaMaterias;b.classList.toggle('activo',on);b.setAttribute('aria-pressed',on?'true':'false');});
+   const tablaEl=$('#vista-tablero'),listaEl=$('#vista-lista');
+   if(tablaEl)tablaEl.hidden=vistaMaterias!=='tablero';
+   if(listaEl)listaEl.hidden=vistaMaterias!=='lista';
+   if(animar)animaLlegada(vistaMaterias==='tablero'?tablaEl:listaEl);
+  };
+  botonesVista.forEach(b=>b.onclick=()=>{vistaMaterias=b.dataset.vista;aplicarVista();});
   $('#confirmar-carrito').onclick=async()=>{
-    const seleccion=checkboxes.filter(c=>c.checked).map(c=>c.value);
-    // 7C: detectar cruce de horario antes de enviar
-    const seleccionadas=materias.filter(m=>seleccion.includes(m.id_materia));
-    const conHorario=seleccionadas.filter(m=>m.dia&&m.hora_inicio&&m.hora_fin);
-    for(let i=0;i<conHorario.length;i++){
-      for(let j=i+1;j<conHorario.length;j++){
-        const a=conHorario[i],b=conHorario[j];
-        if(a.dia===b.dia&&String(a.hora_inicio).slice(0,5)<String(b.hora_fin).slice(0,5)&&String(b.hora_inicio).slice(0,5)<String(a.hora_fin).slice(0,5)){
-          notice(`Cruce de horario: '${a.nombre_curso}' (${a.id_materia}) y '${b.nombre_curso}' (${b.id_materia}) el ${a.dia}. Desmarca una para continuar.`);
-          return;
-        }
-      }
+   const seleccion=seleccionadas();
+   const bloqueadas=seleccion.filter(esMateriaBloqueada);
+   if(bloqueadas.length){
+    bloqueadas.forEach(m=>carrito.delete(m.id_materia));
+    sincronizar();
+    notice(`Quita las materias bloqueadas por requisito: ${bloqueadas.map(m=>m.nombre_curso).join(', ')}.`);
+    return;
+   }
+   if(!periodoMatricula){notice('No hay un periodo de matrícula abierto en este momento.');return;}
+   // 7C: detectar cruce de horario antes de enviar (misma regla del backend)
+   const conHorario=seleccion.filter(m=>m.dia&&m.hora_inicio&&m.hora_fin);
+   for(let i=0;i<conHorario.length;i++){
+    for(let j=i+1;j<conHorario.length;j++){
+     const a=conHorario[i],b=conHorario[j];
+     if(hayCruceHorario(a,b)){
+      notice(`Cruce de horario: '${a.nombre_curso}' (${a.id_materia}) y '${b.nombre_curso}' (${b.id_materia}) el ${a.dia}. Quita una para continuar.`);
+      return;
+     }
     }
-    try{
-     const res=await apiAuth('/matriculas/lote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:SESION.id_persona,periodo:'2026-2',id_materias:seleccion})});
-     notice(`Matrícula confirmada: ${res.matriculas.length} materias, ${res.total_creditos} créditos.`,true);
-     carrito.clear();await vistaMatricular();
-    }catch(error){notice(mensajeRol(error));}
+   }
+   try{
+    const res=await apiAuth('/matriculas/lote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:SESION.id_persona,periodo:periodoMatricula,id_materias:seleccion.map(m=>m.id_materia)})});
+    notice(`Matrícula confirmada: ${res.matriculas.length} materias, ${res.total_creditos} créditos.`,true);
+    carrito.clear();await vistaMatricular();
+   }catch(error){notice(mensajeRol(error));}
   };
-  pintaTotal();
+  sincronizar();
+  aplicarVista(false);
   animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar las materias',mensajeRol(error));}
 }

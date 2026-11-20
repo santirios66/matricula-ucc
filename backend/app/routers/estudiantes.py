@@ -67,6 +67,11 @@ def materias_disponibles(cedula: str):
     'Aprobada' (definitiva 3.0 o más en sus notas, registradas a mano o
     calculadas desde las tareas con momento), 'Matriculada' (tiene matrícula
     Activa en cualquier periodo) o 'Disponible'.
+
+    Además incluye los requisitos de cada materia (V8) y cuáles le faltan al
+    estudiante según la misma regla de aprobación (definitiva >= 3.0). El
+    estado de la materia no cambia por estar bloqueada: la materia sigue en
+    la lista y conserva su estado, pero 'bloqueada' queda en True.
     """
     cedula = cedula.strip()
     if not cedula:
@@ -102,6 +107,26 @@ def materias_disponibles(cedula: str):
                 (id_programa,),
             )
             filas = cur.fetchall()
+            # Requisitos previos (V8) de las materias del plan, con el nombre
+            # de la materia que se exige. Se consultan todos de una vez para
+            # no repetir la consulta por cada materia.
+            requisitos_por_materia = {}
+            if filas:
+                cur.execute(
+                    "SELECT r.id_materia, r.id_requisito, mr.nombre_curso "
+                    "FROM requisitos r "
+                    "JOIN materias mr ON mr.id_materia = r.id_requisito "
+                    "WHERE r.id_materia = ANY(%s) "
+                    "ORDER BY r.id_materia, mr.nombre_curso",
+                    ([fila[0] for fila in filas],),
+                )
+                for id_materia, id_requisito, nombre_requisito in cur.fetchall():
+                    requisitos_por_materia.setdefault(id_materia, []).append(
+                        {
+                            "id_materia": id_requisito,
+                            "nombre_curso": nombre_requisito,
+                        }
+                    )
             # Mejor definitiva por materia con notas registradas a mano
             cur.execute(
                 "SELECT m.id_materia, MAX(n.definitiva) FROM notas n "
@@ -134,6 +159,12 @@ def materias_disponibles(cedula: str):
                 estado = "Matriculada"
             else:
                 estado = "Disponible"
+            requisitos = requisitos_por_materia.get(id_materia, [])
+            requisitos_faltantes = []
+            for requisito in requisitos:
+                definitiva_requisito = definitiva_por_materia.get(requisito["id_materia"])
+                if definitiva_requisito is None or definitiva_requisito < 3.0:
+                    requisitos_faltantes.append(requisito)
             respuesta.append({
                 "id_estudiante": cedula,
                 "id_programa": id_programa,
@@ -151,6 +182,9 @@ def materias_disponibles(cedula: str):
                 "hora_fin": hora_fin,
                 "estado": estado,
                 "definitiva": definitiva,
+                "requisitos": requisitos,
+                "requisitos_faltantes": requisitos_faltantes,
+                "bloqueada": bool(requisitos_faltantes),
             })
         return respuesta
     finally:
