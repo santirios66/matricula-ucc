@@ -735,15 +735,21 @@ function formatoHorario(m){
 function hayCruceHorario(a,b){
  return !!(a&&b&&a.dia&&b.dia&&a.hora_inicio&&a.hora_fin&&b.hora_inicio&&b.hora_fin&&a.dia===b.dia&&String(a.hora_inicio).slice(0,5)<String(b.hora_fin).slice(0,5)&&String(b.hora_inicio).slice(0,5)<String(a.hora_fin).slice(0,5));
 }
-// La API actual no incluye requisitos en materias-disponibles; si una versión
-// futura los agrega (requisitos_faltantes, requisito_faltante o requisitos),
-// la tarjeta muestra el nombre que falta sin tocar el backend.
+// materias-disponibles entrega requisitos_faltantes como
+// [{id_materia, nombre_curso}]; se muestran nombre y código del requisito.
+function nombreRequisito(r){
+ if(typeof r==='string')return r;
+ const nombre=r?.nombre_requisito||r?.nombre_curso;
+ const id=r?.id_requisito||r?.id_materia;
+ if(nombre&&id)return `${nombre} (${id})`;
+ return nombre||id||'';
+}
 function requisitosFaltantes(m){
  const directos=Array.isArray(m.requisitos_faltantes)?m.requisitos_faltantes:[];
- const nombres=directos.map(r=>typeof r==='string'?r:(r?.nombre_requisito||r?.nombre_curso||r?.id_requisito)).filter(Boolean);
+ const nombres=directos.map(nombreRequisito).filter(Boolean);
  if(nombres.length)return nombres;
  if(m.requisito_faltante)return [String(m.requisito_faltante)];
- if(Array.isArray(m.requisitos))return m.requisitos.filter(r=>r&&(r.aprobada===false||r.cumplido===false)).map(r=>r.nombre_requisito||r.nombre_curso||r.id_requisito).filter(Boolean);
+ if(Array.isArray(m.requisitos))return m.requisitos.filter(r=>r&&(r.aprobada===false||r.cumplido===false)).map(nombreRequisito).filter(Boolean);
  return [];
 }
 function estadoMateria(m){
@@ -753,49 +759,64 @@ function estadoMateria(m){
  if(m.bloqueada===true||/bloquead/i.test(String(m.estado||''))||faltan.length)return {clase:'bloqueada',texto:'Bloqueada por requisito',faltan};
  return {clase:'disponible',texto:m.estado||'Disponible',faltan};
 }
+function esMateriaBloqueada(m){return estadoMateria(m).clase==='bloqueada';}
+function avisoBloqueo(m){
+ const faltan=requisitosFaltantes(m);
+ notice(`'${m.nombre_curso}' está bloqueada por requisito${faltan.length?`: falta ${faltan.join(', ')}`:''}.`);
+}
 async function vistaMatricular(){
  $('#refresh').hidden=false;
  if(SESION.rol!=='Estudiante'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de estudiante adecuada.');return;}
  $('#view').innerHTML=vacio('⏳','Cargando materias','Un momento, consultamos el plan de estudios de tu programa.');
  try{
-  const materias=await api(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/materias-disponibles`);
+  const [materias,periodos]=await Promise.all([
+   api(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/materias-disponibles`),
+   api('/periodos/'),
+  ]);
   const porId=new Map(materias.map(m=>[m.id_materia,m]));
-  carrito=new Set([...carrito].filter(id=>porId.has(id)));
+  const hoy=new Date();
+  const periodoAbierto=(periodos||[]).find(p=>{
+   const ini=p.fecha_inicio?new Date(p.fecha_inicio+'T00:00:00'):null;
+   const fin=p.fecha_fin?new Date(p.fecha_fin+'T23:59:59'):null;
+   return ini&&fin&&hoy>=ini&&hoy<=fin;
+  });
+  const periodoMatricula=periodoAbierto?periodoAbierto.periodo:null;
+  carrito=new Set([...carrito].filter(id=>porId.has(id)&&!esMateriaBloqueada(porId.get(id))));
   const semestreDe=m=>{const n=Number(m.semestre);return Number.isFinite(n)?n:0;};
   const semestres=[...new Set(materias.map(semestreDe))].sort((a,b)=>a-b);
   const tarjeta=m=>{
-   const ev=estadoMateria(m),enCarrito=carrito.has(m.id_materia),faltan=ev.faltan.join(', ');
-   const etiqueta=`${m.id_materia} ${m.nombre_curso}, ${m.creditos} créditos, ${m.obligatoria?'obligatoria':'electiva'}, ${ev.texto}${ev.clase==='bloqueada'&&faltan?`. Falta ${faltan}`:''}. ${enCarrito?'En el carrito':'Presiona Enter o espacio para agregar al carrito'}`;
-   return `<article class="materia-card estado-${ev.clase}${enCarrito?' en-carrito':''}" data-id="${esc(m.id_materia)}" draggable="true" tabindex="0" role="button" aria-pressed="${enCarrito?'true':'false'}" aria-label="${esc(etiqueta)}">
-    <div class="materia-card-top"><span class="chip chip-codigo">${esc(m.id_materia)}</span><span class="materia-card-creditos">${esc(m.creditos)} créditos</span><span class="materia-card-marca" aria-hidden="true">${enCarrito?'✓':''}</span></div>
+   const ev=estadoMateria(m),bloq=ev.clase==='bloqueada',enCarrito=!bloq&&carrito.has(m.id_materia),faltan=ev.faltan.join(', ');
+   const etiqueta=`${m.id_materia} ${m.nombre_curso}, ${m.creditos} créditos, ${m.obligatoria?'obligatoria':'electiva'}, ${ev.texto}${bloq&&faltan?`. Falta ${faltan}`:''}. ${bloq?'No se puede agregar al carrito.':(enCarrito?'En el carrito':'Presiona Enter o espacio para agregar al carrito')}`;
+   return `<article class="materia-card estado-${ev.clase}${enCarrito?' en-carrito':''}${bloq?' bloqueada':''}" data-id="${esc(m.id_materia)}" data-bloqueada="${bloq?'true':'false'}" draggable="${bloq?'false':'true'}" tabindex="0" role="button" aria-pressed="${enCarrito?'true':'false'}" aria-disabled="${bloq?'true':'false'}" aria-label="${esc(etiqueta)}">
+    <div class="materia-card-top"><span class="chip chip-codigo">${esc(m.id_materia)}</span>${bloq?'<span class="materia-card-candado" title="Materia bloqueada por requisito" aria-hidden="true">🔒 Bloqueada</span>':''}<span class="materia-card-creditos">${esc(m.creditos)} créditos</span><span class="materia-card-marca" aria-hidden="true">${enCarrito?'✓':''}</span></div>
     <strong class="materia-card-nombre">${esc(m.nombre_curso)}</strong>
     <div class="materia-card-datos">
      <div class="materia-dato"><span class="materia-dato-et">Tipo</span><span class="materia-dato-val ${m.obligatoria?'dato-obligatoria':'dato-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span></div>
      <div class="materia-dato"><span class="materia-dato-et">Horario</span><span class="materia-dato-val">${esc(formatoHorario(m))}</span></div>
     </div>
     <div class="materia-card-pie">
-     <div class="materia-card-estado">${ev.clase==='bloqueada'?'<span class="candado" aria-hidden="true">🔒</span>':''}<span class="estado-punto" aria-hidden="true"></span><span>${esc(ev.texto)}</span>${ev.clase==='bloqueada'&&faltan?`<span class="requisito-falta">Falta: ${esc(faltan)}</span>`:''}</div>
-     <span class="materia-card-cta" aria-hidden="true">${enCarrito?'✓ En carrito':'+ Agregar'}</span>
+     <div class="materia-card-estado"><span class="estado-punto" aria-hidden="true"></span><span>${esc(ev.texto)}</span>${bloq&&faltan?`<span class="requisito-falta">Falta: ${esc(faltan)}</span>`:''}</div>
+     <span class="materia-card-cta" aria-hidden="true">${bloq?'🔒 Bloqueada':(enCarrito?'✓ En carrito':'+ Agregar')}</span>
     </div>
    </article>`;
   };
   const itemLista=m=>{
-   const ev=estadoMateria(m),enCarrito=carrito.has(m.id_materia);
-   return `<label class="carrito-item"><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${esc(m.creditos)}"${enCarrito?' checked':''}><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${esc(m.creditos)} créditos</span><span class="chip">${esc(m.cupos)} cupos</span><span class="chip">${esc(formatoHorario(m))}</span><span class="chip chip-semestre">Semestre ${esc(m.semestre)}</span><span class="chip ${m.obligatoria?'chip-obligatoria':'chip-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span><span class="chip chip-estado-${ev.clase}">${esc(ev.texto)}</span></span></span></label>`;
+   const ev=estadoMateria(m),bloq=ev.clase==='bloqueada',enCarrito=!bloq&&carrito.has(m.id_materia),faltan=ev.faltan.join(', ');
+   return `<label class="carrito-item${bloq?' bloqueada':''}"${bloq?' title="Materia bloqueada por requisito"':''}><input type="checkbox" value="${esc(m.id_materia)}" data-creditos="${esc(m.creditos)}"${enCarrito?' checked':''}${bloq?' disabled aria-disabled="true"':''}><span class="carrito-info"><span class="carrito-nombre">${esc(m.nombre_curso)}</span><span class="carrito-meta"><span class="chip">${esc(m.id_materia)}</span><span class="chip chip-creditos">${esc(m.creditos)} créditos</span><span class="chip">${esc(m.cupos)} cupos</span><span class="chip">${esc(formatoHorario(m))}</span><span class="chip chip-semestre">Semestre ${esc(m.semestre)}</span><span class="chip ${m.obligatoria?'chip-obligatoria':'chip-electiva'}">${m.obligatoria?'Obligatoria':'Electiva'}</span><span class="chip chip-estado-${ev.clase}">${bloq?'🔒 ':''}${esc(ev.texto)}</span>${bloq?`<span class="requisito-falta">Falta: ${esc(faltan||'requisito')}</span>`:''}</span></span></label>`;
   };
   const tablero=semestres.map(n=>{
    const lista=materias.filter(m=>semestreDe(m)===n);
    return `<section class="tablero-columna"><header class="tablero-columna-cab"><h3>${n?`Semestre ${n}`:'Sin semestre'}</h3><span class="count">${lista.length} ${lista.length===1?'materia':'materias'}</span></header><div class="tablero-cards">${lista.map(tarjeta).join('')}</div></section>`;
   }).join('');
   const opciones=materias.map(itemLista).join('');
-  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel matricular-panel"><div class="panel-top matricular-top"><div><h2>Materias de tu plan de estudios</h2><p>${materias.length?'Elige por semestre en el tablero. Arrastra una tarjeta a "Tu carrito" o haz clic en ella.':'Materias del plan de tu programa.'}</p></div>${materias.length?`<div class="vista-switch" role="group" aria-label="Vista de materias"><button type="button" data-vista="tablero" class="${vistaMaterias==='tablero'?'activo':''}" aria-pressed="${vistaMaterias==='tablero'}">▦ Tablero</button><button type="button" data-vista="lista" class="${vistaMaterias==='lista'?'activo':''}" aria-pressed="${vistaMaterias==='lista'}">☰ Lista</button></div>`:''}</div>${materias.length?`<div class="matricular-cuerpo"><div class="vista-tablero" id="vista-tablero"${vistaMaterias==='tablero'?'':' hidden'}><div class="tablero-wrap"><div class="tablero-columnas">${tablero}</div><aside class="carrito-zona" id="carrito-zona" aria-label="Tu carrito"><div class="carrito-zona-cab"><h3>Tu carrito</h3><span class="carrito-cuenta" id="carrito-cuenta">0</span></div><div class="carrito-zona-lista" id="carrito-zona-lista"></div><p class="carrito-pista">Entre 6 y 19 créditos en total para confirmar.</p></aside></div></div><div class="vista-lista" id="vista-lista"${vistaMaterias==='lista'?'':' hidden'}><div class="carrito">${opciones}</div></div></div>`:vacio('▥','Tu programa aún no tiene plan de estudios cargado','Cuando tu programa cargue su plan de estudios, las materias aparecerán aquí para armar tu matrícula.')}<div class="panel-top matricular-pie"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted">Debe quedar entre 6 y 19</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel matricular-panel"><div class="panel-top matricular-top"><div><h2>Materias de tu plan de estudios</h2><p>${materias.length?'Elige por semestre en el tablero. Arrastra una tarjeta a "Tu carrito" o haz clic en ella.':'Materias del plan de tu programa.'}</p></div>${materias.length?`<div class="vista-switch" role="group" aria-label="Vista de materias"><button type="button" data-vista="tablero" class="${vistaMaterias==='tablero'?'activo':''}" aria-pressed="${vistaMaterias==='tablero'}">▦ Tablero</button><button type="button" data-vista="lista" class="${vistaMaterias==='lista'?'activo':''}" aria-pressed="${vistaMaterias==='lista'}">☰ Lista</button></div>`:''}</div>${materias.length?`<div class="matricular-cuerpo"><div class="vista-tablero" id="vista-tablero"${vistaMaterias==='tablero'?'':' hidden'}><div class="tablero-wrap"><div class="tablero-columnas">${tablero}</div><aside class="carrito-zona" id="carrito-zona" aria-label="Tu carrito"><div class="carrito-zona-cab"><h3>Tu carrito</h3><span class="carrito-cuenta" id="carrito-cuenta">0</span></div><div class="carrito-zona-lista" id="carrito-zona-lista"></div><p class="carrito-pista">Entre 6 y 19 créditos en total para confirmar.</p></aside></div></div><div class="vista-lista" id="vista-lista"${vistaMaterias==='lista'?'':' hidden'}><div class="carrito">${opciones}</div></div></div>`:vacio('▥','Tu programa aún no tiene plan de estudios cargado','Cuando tu programa cargue su plan de estudios, las materias aparecerán aquí para armar tu matrícula.')}<div class="panel-top matricular-pie"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted" id="periodo-matricula">${periodoMatricula?`Periodo ${esc(periodoMatricula)} · entre 6 y 19 créditos`:'No hay un periodo de matrícula abierto'}</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
   const seleccionadas=()=>materias.filter(m=>carrito.has(m.id_materia));
   const total=()=>seleccionadas().reduce((s,m)=>s+Number(m.creditos||0),0);
   const pintaTotal=()=>{
    const t=total(),enRango=t>=6&&t<=19;
    const el=$('#total-creditos');if(el){el.textContent=`Total: ${t} créditos`;el.style.color=enRango?'#2E8B57':'#b02a37';}
    const ind=$('#ind-creditos');if(ind){ind.textContent=`${t} créditos`;const caja=ind.closest('.indicador');if(caja){caja.classList.toggle('ok',enRango);caja.classList.toggle('malo',!enRango);}}
-   const btn=$('#confirmar-carrito');if(btn)btn.disabled=!enRango;
+   const btn=$('#confirmar-carrito');if(btn)btn.disabled=!enRango||!periodoMatricula;
   };
   const pintaCarrito=()=>{
    const lista=$('#carrito-zona-lista'),cuenta=$('#carrito-cuenta');
@@ -817,26 +838,30 @@ async function vistaMatricular(){
    });
   };
   const sincronizar=()=>{
-   document.querySelectorAll('.carrito-item input').forEach(c=>{c.checked=carrito.has(c.value);});
+   document.querySelectorAll('.carrito-item input').forEach(c=>{c.checked=!c.disabled&&carrito.has(c.value);});
    document.querySelectorAll('.materia-card').forEach(card=>{
-    const on=carrito.has(card.dataset.id);
+    const m=porId.get(card.dataset.id);if(!m)return;
+    const bloq=esMateriaBloqueada(m),on=!bloq&&carrito.has(card.dataset.id);
     card.classList.toggle('en-carrito',on);
     card.setAttribute('aria-pressed',on?'true':'false');
     const marca=card.querySelector('.materia-card-marca');
     if(marca)marca.textContent=on?'✓':'';
     const cta=card.querySelector('.materia-card-cta');
-    if(cta)cta.textContent=on?'✓ En carrito':'+ Agregar';
+    if(cta)cta.textContent=bloq?'🔒 Bloqueada':(on?'✓ En carrito':'+ Agregar');
    });
    actualizarCruces();
    pintaCarrito();
    pintaTotal();
   };
   const alternar=id=>{
-   if(!porId.has(id))return;
+   const m=porId.get(id);if(!m)return;
+   if(esMateriaBloqueada(m)){avisoBloqueo(m);return;}
    if(carrito.has(id))carrito.delete(id);else carrito.add(id);
    sincronizar();
   };
   document.querySelectorAll('.carrito-item input').forEach(c=>c.onchange=()=>{
+   const m=porId.get(c.value);
+   if(!m||esMateriaBloqueada(m)){c.checked=false;if(m)avisoBloqueo(m);return;}
    if(c.checked)carrito.add(c.value);else carrito.delete(c.value);
    sincronizar();
   });
@@ -846,6 +871,8 @@ async function vistaMatricular(){
     if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){e.preventDefault();alternar(card.dataset.id);}
    };
    card.ondragstart=e=>{
+    const m=porId.get(card.dataset.id);
+    if(!m||esMateriaBloqueada(m)){e.preventDefault();return;}
     e.dataTransfer.setData('text/plain',card.dataset.id);
     e.dataTransfer.effectAllowed='copy';
     card.classList.add('arrastrando');
@@ -862,11 +889,12 @@ async function vistaMatricular(){
    zona.ondragleave=()=>zona.classList.remove('drop-activo');
    zona.ondrop=e=>{
     e.preventDefault();zona.classList.remove('drop-activo');
-    const id=e.dataTransfer.getData('text/plain');
-    if(!porId.has(id))return;
+    const id=e.dataTransfer.getData('text/plain'),m=porId.get(id);
+    if(!m)return;
+    if(esMateriaBloqueada(m)){avisoBloqueo(m);return;}
     if(carrito.has(id)){notice('Esa materia ya está en tu carrito.');return;}
     carrito.add(id);sincronizar();
-    notice(`${porId.get(id).nombre_curso} agregada al carrito.`,true);
+    notice(`${m.nombre_curso} agregada al carrito.`,true);
    };
   }
   const botonesVista=[...document.querySelectorAll('.vista-switch [data-vista]')];
@@ -880,6 +908,14 @@ async function vistaMatricular(){
   botonesVista.forEach(b=>b.onclick=()=>{vistaMaterias=b.dataset.vista;aplicarVista();});
   $('#confirmar-carrito').onclick=async()=>{
    const seleccion=seleccionadas();
+   const bloqueadas=seleccion.filter(esMateriaBloqueada);
+   if(bloqueadas.length){
+    bloqueadas.forEach(m=>carrito.delete(m.id_materia));
+    sincronizar();
+    notice(`Quita las materias bloqueadas por requisito: ${bloqueadas.map(m=>m.nombre_curso).join(', ')}.`);
+    return;
+   }
+   if(!periodoMatricula){notice('No hay un periodo de matrícula abierto en este momento.');return;}
    // 7C: detectar cruce de horario antes de enviar (misma regla del backend)
    const conHorario=seleccion.filter(m=>m.dia&&m.hora_inicio&&m.hora_fin);
    for(let i=0;i<conHorario.length;i++){
@@ -892,7 +928,7 @@ async function vistaMatricular(){
     }
    }
    try{
-    const res=await apiAuth('/matriculas/lote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:SESION.id_persona,periodo:'2026-2',id_materias:seleccion.map(m=>m.id_materia)})});
+    const res=await apiAuth('/matriculas/lote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cedula:SESION.id_persona,periodo:periodoMatricula,id_materias:seleccion.map(m=>m.id_materia)})});
     notice(`Matrícula confirmada: ${res.matriculas.length} materias, ${res.total_creditos} créditos.`,true);
     carrito.clear();await vistaMatricular();
    }catch(error){notice(mensajeRol(error));}

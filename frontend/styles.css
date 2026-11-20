@@ -430,7 +430,10 @@ body.tema-oscuro .ayuda-plan{color:#ecc76d}
 .materia-card.estado-aprobada{border-left-color:#2E8B57;background:linear-gradient(180deg,#f1fbf5,#fff)}
 .materia-card.estado-matriculada{border-left-color:#0f8f96;background:linear-gradient(180deg,#eef9f8,#fff)}
 .materia-card.estado-disponible{border-left-color:#c9d6df}
-.materia-card.estado-bloqueada{border-left-color:#8a99a5;background:#f2f4f6;color:#6a7e8d}
+.materia-card.estado-bloqueada{border-left-color:#8a99a5;background:linear-gradient(180deg,#f4f6f8,#eceff2);color:#6a7e8d;cursor:not-allowed}
+.materia-card.estado-bloqueada:hover{transform:none;box-shadow:0 1px 2px rgba(16,44,64,.04)}
+.materia-card-candado{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;letter-spacing:.2px;text-transform:uppercase;color:#5c7080;background:#e6ebef;border:1px solid #d2dbe2;border-radius:20px;padding:2px 8px;white-space:nowrap}
+.materia-card.estado-bloqueada .materia-card-cta{background:#e9edf0;border-color:#d5dde3;color:#6a7e8d;cursor:not-allowed}
 .materia-card.en-carrito{outline:2px solid var(--teal);outline-offset:-2px;box-shadow:0 6px 16px rgba(0,124,130,.16)}
 .materia-card.cruce{border-color:#c0392b;border-left-color:#c0392b;box-shadow:0 0 0 2px rgba(192,57,43,.2)}
 .materia-card-top{display:flex;align-items:center;gap:8px}
@@ -480,6 +483,10 @@ body.tema-oscuro .ayuda-plan{color:#ecc76d}
 .carrito-pista{font-size:11px;color:#718391;margin:0;line-height:1.5;border-top:1px dashed #d7e4ea;padding-top:8px}
 .matricular-pie{border-top:1px solid var(--line);flex-wrap:wrap}
 .carrito-item.cruce,.carrito-item:has(input:checked).cruce{border-color:#c0392b;box-shadow:0 0 0 2px rgba(192,57,43,.18)}
+.carrito-item.bloqueada{border-style:dashed;background:#f4f6f8;cursor:not-allowed;opacity:.9}
+.carrito-item.bloqueada:hover{border-color:var(--line)}
+.carrito-item.bloqueada input{cursor:not-allowed;accent-color:#8a99a5}
+.carrito-item.bloqueada .requisito-falta{padding-left:0}
 
 @media(max-width:1100px){.tablero-wrap{grid-template-columns:1fr}.carrito-zona{position:static;order:-1;max-height:none}.carrito-zona-lista{max-height:220px}}
 @media(max-width:760px){.matricular-top{align-items:flex-start;flex-direction:column}.matricular-cuerpo{padding:0 18px 18px}.tablero-columnas{grid-auto-columns:minmax(250px,280px)}}
@@ -497,6 +504,8 @@ body.tema-oscuro .materia-card.estado-aprobada{background:linear-gradient(180deg
 body.tema-oscuro .materia-card.estado-matriculada{background:linear-gradient(180deg,#12414a,#133145);border-left-color:#4fc3c9}
 body.tema-oscuro .materia-card.estado-disponible{border-left-color:#3a5a6d}
 body.tema-oscuro .materia-card.estado-bloqueada{background:#102a38;border-left-color:#5c7484;color:#9db4c0}
+body.tema-oscuro .materia-card-candado{background:#1c3d52;border-color:#2a4a5e;color:#9db4c0}
+body.tema-oscuro .materia-card.estado-bloqueada .materia-card-cta{background:#1c3d52;border-color:#2a4a5e;color:#8fa8b6}
 body.tema-oscuro .materia-card.en-carrito{outline-color:#4fc3c9;box-shadow:0 6px 16px rgba(0,0,0,.3)}
 body.tema-oscuro .materia-card.cruce{border-color:#ff9299;border-left-color:#ff9299;box-shadow:0 0 0 2px rgba(255,146,153,.24)}
 body.tema-oscuro .materia-card-nombre{color:#e6f1f7}
@@ -528,3 +537,5 @@ body.tema-oscuro .carrito-quitar{background:#3b1219;color:#ff9299}
 body.tema-oscuro .carrito-quitar:hover{background:#b02a37;color:#fff}
 body.tema-oscuro .matricular-pie{border-top-color:#23414f}
 body.tema-oscuro .carrito-item.cruce,body.tema-oscuro .carrito-item:has(input:checked).cruce{border-color:#ff9299;box-shadow:0 0 0 2px rgba(255,146,153,.2)}
+body.tema-oscuro .carrito-item.bloqueada{background:#102a38;border-color:#28475a}
+body.tema-oscuro .carrito-item.bloqueada:hover{border-color:#28475a}
