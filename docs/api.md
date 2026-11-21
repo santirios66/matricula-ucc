@@ -1,320 +1,309 @@
-# Contrato de la API — Matrícula Universitaria
+# Contrato de la API — Matricula Universitaria
 
-Base: `http://localhost:8000` · Documentación interactiva: `http://localhost:8000/docs`
+Base: `http://localhost:8000` · Documentacion interactiva: `http://localhost:8000/docs`
 
-## Autenticación de las rutas protegidas
+Cobertura: todos los endpoints implementados en `backend/app/routers/` a la fecha de este documento. Si un endpoint no esta aqui, es porque no existe en el codigo.
 
-Salvo `/health`, `/`, `/auth/*`, los `GET` de catálogos (`/facultades/`, `/programas/`, `/materias/`, `/profesores/`, `/estudiantes/`) y los POST marcados, toda petición exige los encabezados:
+## Autenticacion
+
+Salvo `GET /`, `GET /health`, `POST /auth/login`, `POST /auth/cambiar-clave` y los `GET` de catalogos (`/facultades/`, `/programas/`, `/materias/`, `/profesores/`, `/estudiantes/`, `/periodos/`) y `GET /estudiantes/{cedula}/materias-disponibles`, toda petic exige los encabezados:
 
 | Encabezado | Contenido |
 |---|---|
-| `X-Usuario` | nombre del usuario en la tabla `usuarios` |
-| `X-Clave` | contraseña en texto plano (solo viaja por HTTP local/red interna) |
+| `X-Usuario` | usuario de la tabla `usuarios` |
+| `X-Clave` | clave en texto plano (solo HTTP local; ver `docs/limitaciones.md`) |
 
-Los tres roles posibles son `Administrador`, `Profesor` y `Estudiante` (columna `rol` de `usuarios`).
+Roles posibles: `Administrador`, `Profesor`, `Estudiante` (`seguridad_api.py`).
 
-Respuestas de error comunes:
+Errores comunes:
 
-- `401` — faltan encabezados o credenciales incorrectas: `{"detail": "Usuario o contraseña incorrectos"}`.
-- `403` — credenciales válidas pero rol insuficiente.
-- `422` — validación de datos (Pydantic o chequeos explícitos).
+- `401` faltan encabezados o credenciales incorrectas: `{"detail": "Usuario o contrasena incorrectos"}`.
+- `403` credenciales validas pero rol insuficiente.
+- `404` el recurso referenciado no existe.
+- `409` conflicto de estado (duplicado, cupos, ventana de matricula en curso).
+- `422` validacion de datos o regla de negocio rechazada.
 
 ---
 
-## Salud
+## Raiz
 
 ### `GET /health`
-- **Rol:** público.
-- **Salida:** `{"estado": "ok"}`.
-- **Errores:** ninguno.
+- **Rol:** publico. **Salida:** `{"estado": "ok"}`.
 
 ### `GET /`
-- **Rol:** público.
-- **Salida:** `{"mensaje": "API de Matrícula Universitaria en funcionamiento"}`.
+- **Rol:** publico. **Salida:** `{"mensaje": "API de Matricula Universitaria en funcionamiento"}`.
 
 ---
 
-## Autenticación — `backend/app/routers/auth.py`
+## Auth — `routers/auth.py`
 
 ### `POST /auth/login`
-- **Rol:** público (define la sesión).
-- **Entrada:**
-```json
-{"usuario": "admin", "clave": "MiClave123"}
-```
-- **Salida 200:**
-```json
-{"usuario": "admin", "rol": "Administrador", "id_persona": null, "debe_cambiar_clave": false}
-```
-- **Errores:** `401` credenciales incorrectas (mensaje genérico); `422` campos vacíos.
+- **Rol:** publico. **Entrada:** `{"usuario": "admin", "clave": "..."}`.
+- **Salida 200:** `{"usuario", "rol", "id_persona", "debe_cambiar_clave"}` (sin sal ni hash). Para el estudiante, `id_persona` es su cedula; para el admin es `null`.
+- **Errores:** `401` credenciales; `422` campos vacios.
 
 ### `POST /auth/cambiar-clave`
-- **Rol:** cualquier usuario autenticado (se verifica con sus propias credenciales).
-- **Entrada:**
-```json
-{"usuario": "1001", "clave_actual": "TempAbc9", "clave_nueva": "NuevaClave123"}
-```
-- **Salida 200:** `{"mensaje": "Contraseña actualizada"}`.
-- **Errores:** `401` clave actual incorrecta; `422` clave nueva con menos de 8 caracteres o igual a la actual.
+- **Rol:** cualquier usuario (verifica sus propias credenciales).
+- **Entrada:** `{"usuario", "clave_actual", "clave_nueva"}`.
+- **Salida 200:** `{"mensaje": "Contrasena actualizada"}`.
+- **Errores:** `401` clave actual incorrecta; `422` clave nueva menor a 8 caracteres o igual a la actual.
 
-### `POST /auth/restablecer-clave` (solo admin)
-- **Rol:** `Administrador` (verificado con `usuario_admin`/`clave_admin`).
-- **Entrada:**
-```json
-{"usuario_admin": "admin", "clave_admin": "NuevaClave123", "usuario_objetivo": "1001"}
-```
-- **Salida 200:** `{"usuario": "1001", "clave_temporal": "pQ7mXk2z"}` (única vez que se devuelve la clave).
-- **Errores:** `403` si `usuario_admin` no es Administrador; `401` si su clave falla; `404` si no existe `usuario_objetivo`.
+### `POST /auth/restablecer-clave`
+- **Rol:** `Administrador` (credenciales del admin en el cuerpo).
+- **Entrada:** `{"usuario_admin", "clave_admin", "usuario_objetivo"}`.
+- **Salida 200:** `{"usuario", "clave_temporal"}` (unica vez que se devuelve; `debe_cambiar_clave=true`).
+- **Errores:** `403` el que firma no es admin; `401` clave del admin incorrecta; `404` usuario objetivo inexistente.
+
+### `POST /auth/crear-cuenta-estudiante`
+- **Rol:** solo `Administrador` (`X-Usuario`/`X-Clave` de admin). **Entrada:** `{"id_estudiante": "1002"}`.
+- **Salida 201:** `{"usuario", "rol": "Estudiante", "clave_temporal"}`.
+- **Errores:** `403` no admin; `404` el estudiante no existe; `409` la cuenta ya existe.
+
+### `POST /auth/crear-cuenta-profesor`
+- Igual al anterior con `{"id_profesor": "PR04"}` y `rol: "Profesor"`. Mismos errores.
 
 ---
 
-## Facultades — `backend/app/routers/facultades.py`
+## Facultades — `routers/facultades.py`
 
 ### `GET /facultades/`
-- **Rol:** público.
-- **Salida 200:** `[{"id_facultad": "F01", "nombre_facultad": "Ingeniería"}]`.
+- **Rol:** publico. **Salida 200:** `[{"id_facultad", "nombre_facultad"}]` ordenadas por ID.
 
 ### `POST /facultades/`
-- **Rol:** solo `Administrador` (si no, `403`).
-- **Entrada:** `{"id_facultad": "F02", "nombre_facultad": "Salud"}` (mínimo 1 carácter cada campo).
-- **Salida 201:** la misma facultad creada.
-- **Errores:** `403` no admin; `409` ID duplicado; `422` validación.
+- **Rol:** solo `Administrador`. **Entrada:** `{"id_facultad", "nombre_facultad"}`.
+- **Salida 201:** la facultad creada. **Errores:** `403`; `409` ID duplicado; `422`.
 
 ---
 
-## Programas — `backend/app/routers/programas.py`
+## Programas — `routers/programas.py`
 
 ### `GET /programas/`
-- **Rol:** público.
-- **Salida 200:** `[{"id_programa": "P01", "nombre_programa": "Ingeniería de Sistemas", "id_facultad": "F01"}]`.
+- **Rol:** publico. **Salida 200:** `[{"id_programa", "nombre_programa", "id_facultad"}]`.
 
 ### `POST /programas/`
-- **Rol:** solo `Administrador`.
-- **Entrada:** `{"id_programa": "P02", "nombre_programa": "Enfermería", "id_facultad": "F01"}`.
-- **Salida 201:** el programa creado.
-- **Errores:** `403` no admin; `404` la facultad no existe; `409` ID duplicado; `422` validación.
+- **Rol:** solo `Administrador`. **Entrada:** `{"id_programa", "nombre_programa", "id_facultad"}`.
+- **Salida 201:** el programa creado. **Errores:** `403`; `404` facultad inexistente; `409` duplicado; `422`.
 
 ---
 
-## Materias — `backend/app/routers/materias.py`
+## Plan de estudios — `routers/plan.py` (prefijo `/programas`)
+
+Todos exigen `Administrador`.
+
+### `GET /programas/{id_programa}/plan`
+- **Salida 200:** `[{id_programa, nombre_programa, id_materia, nombre_curso, creditos, semestre, obligatoria}]` ordenado por semestre.
+- **Errores:** `404` programa inexistente.
+
+### `POST /programas/{id_programa}/plan`
+- **Entrada:** `{"id_materia", "semestre" (1 a 10), "obligatoria" (bool)}`.
+- **Salida 201:** la fila del plan con nombre y creditos de la materia.
+- **Errores:** `404` programa o materia inexistente; `409` la materia ya esta en el plan.
+
+### `PUT /programas/{id_programa}/plan/{id_materia}`
+- **Entrada:** `{"semestre" (opcional), "obligatoria" (opcional)}` (al menos uno).
+- **Salida 200:** la fila actualizada. **Errores:** `404` programa inexistente o materia fuera del plan; `422` semestre fuera de 1-10.
+
+### `DELETE /programas/{id_programa}/plan/{id_materia}`
+- Quita la materia del plan. No toca matriculas, notas ni tareas ya guardadas.
+- **Salida 200:** mensaje de confirmacion.
+- **Errores:** `404` programa inexistente o materia fuera del plan; `409` otra materia del MISMO plan depende de ella como requisito previo (el mensaje la nombra).
+
+---
+
+## Materias — `routers/materias.py`
 
 ### `GET /materias/`
-- **Rol:** público.
-- **Salida 200:** `[{"id_materia": "M01", "nombre_curso": "Programación en Java", "creditos": 4, "cupos": 20, "id_facultad": "F01", "horario": "Lunes 8:00am - 10:00am", "id_profesor": "PR01"}]`.
+- **Rol:** publico. **Salida 200:** `[{id_materia, nombre_curso, creditos, cupos, id_facultad, horario, id_profesor, dia, hora_inicio, hora_fin}]` (`dia`/`hora_*` son `null` si no se han cargado, migracion V10).
 
-### `POST /materias/`
-- **Rol:** solo `Administrador`.
-- **Entrada:**
-```json
-{"id_materia": "M06", "nombre_curso": "Cálculo", "creditos": 3, "cupos": 20, "id_facultad": "F01", "horario": "Miércoles 10:00am", "id_profesor": "PR01"}
-```
-- `creditos` entero > 0; `cupos` entero >= 0 (por defecto 20); `horario` opcional (vacío → `null`).
-- **Salida 201:** la materia creada.
-- **Errores:** `403` no admin; `404` facultad o profesor inexistente; `409` ID duplicado; `422` validación.
+### `POST /materias/` — solo `Administrador`
+- **Entrada:** `{"id_materia", "nombre_curso", "creditos" (>0), "cupos" (>=0, por defecto 20), "id_facultad", "id_profesor", "horario" (opcional), "dia" (opcional), "hora_inicio" (opcional), "hora_fin" (opcional)}`.
+- **Salida 201:** la materia creada. **Errores:** `403`; `404` facultad o profesor inexistente; `409` ID duplicado; `422`.
+
+### `PUT /materias/{id_materia}` — solo `Administrador`
+- Misma entrada que el POST (reemplaza todos los campos). **Salida 200:** la materia actualizada.
+- **Errores:** `404` materia, facultad o profesor inexistente; `422`.
+
+### `DELETE /materias/{id_materia}` — solo `Administrador`
+- **Salida 200:** `{"detalle": "La materia '...' (ID) se elimino correctamente."}`.
+- **Errores:** `404` inexistente; `409` esta referenciada por plan, matriculas u otros registros.
 
 ---
 
-## Profesores — `backend/app/routers/profesores.py`
+## Profesores — `routers/profesores.py`
 
 ### `GET /profesores/`
-- **Rol:** público.
-- **Salida 200:** `[{"id_profesor": "PR01", "nombre": "Carlos", "apellidos": "Perez"}]`.
+- **Rol:** publico. **Salida 200:** `[{"id_profesor", "nombre", "apellidos"}]`.
 
 ### `POST /profesores/`
-- **Rol:** solo `Administrador`.
-- **Entrada:** `{"id_profesor": "PR04", "nombre": "Laura", "apellidos": "Rios"}`.
-- **Salida 201:** el profesor creado.
-- **Errores:** `403` no admin; `409` ID duplicado; `422` validación.
+- **Rol:** solo `Administrador`. **Entrada:** `{"id_profesor", "nombre", "apellidos"}`.
+- **Salida 201:** el profesor creado. **Errores:** `403`; `409` duplicado; `422`.
 
 ---
 
-## Estudiantes — `backend/app/routers/estudiantes.py`
+## Estudiantes — `routers/estudiantes.py`
 
 ### `GET /estudiantes/`
-- **Rol:** público.
-- **Salida 200:** `[{"id_estudiante": "1001", "nombre": "Santiago", "apellidos": "Patiño Ríos", "correo": "santiago.patino@ucc.edu.co", "telefono": "3000000000", "semestre": 4, "id_programa": "P01"}]`.
+- **Rol:** publico. **Salida 200:** `[{id_estudiante, nombre, apellidos, correo, telefono, semestre, id_programa}]`.
 
 ### `POST /estudiantes/`
-- **Rol:** solo `Administrador`.
-- **Entrada:**
-```json
-{"id_estudiante": "1002", "nombre": "Ana", "apellidos": "Lopez", "correo": "ana@ucc.edu.co", "telefono": null, "semestre": 2, "id_programa": "P01"}
-```
-- `correo` debe contener `@`; `telefono` opcional; `semestre` entero > 0.
-- **Salida 201:** el estudiante creado.
-- **Errores:** `403` no admin; `404` programa inexistente; `409` ID duplicado; `422` validación.
+- **Rol:** solo `Administrador`. **Entrada:** `{"id_estudiante", "nombre", "apellidos", "correo" (con @), "telefono" (opcional), "semestre" (>0), "id_programa"}`.
+- **Salida 201:** el estudiante creado. **Errores:** `403`; `404` programa inexistente; `409` duplicado; `422`.
 
 ### `GET /estudiantes/{cedula}/materias-disponibles`
-- **Rol:** público.
-- **Descripción:** materias de la facultad del programa del estudiante (JOIN `estudiantes → programas → materias`), para armar el carrito.
-- **Salida 200:**
-```json
-[
-  {"id_estudiante": "1001", "id_programa": "P01", "id_facultad": "F01",
-   "id_materia": "M01", "nombre_curso": "Programación en Java", "creditos": 4,
-   "cupos": 20, "horario": "Lunes 8:00am - 10:00am", "id_profesor": "PR01"}
-]
-```
-- **Errores:** `404` cédula inexistente; `422` cédula vacía.
+- **Rol:** publico.
+- **Que devuelve:** las materias del **plan de estudios del programa del estudiante** (V7), no toda la facultad, con el semestre del plan y el estado academico de cada una: `Aprobada` (definitiva >= 3.0), `Matriculada` (tiene matricula activa en el periodo vigente), `bloqueada: true` mas `requisitos_faltantes: [{id_materia, nombre_curso}]` si le faltan requisitos (V8), o `Disponible`.
+- **Salida 200:** `[{id_estudiante, id_programa, id_facultad, id_materia, nombre_curso, creditos, cupos, horario, id_profesor, dia, hora_inicio, hora_fin, semestre, obligatoria, estado, bloqueada, requisitos_faltantes}]`.
+- **Errores:** `422` cedula vacia; `404` estudiante inexistente.
+
+### `GET /estudiantes/{cedula}/matriculas?periodo=...`
+- **Rol:** el propio estudiante o `Administrador` (el profesor recibe `403`).
+- **Que devuelve:** historial del periodo: materias con `id_matricula`, `nombre_curso`, `creditos`, `calificacion` y `nota_final` (la definitiva registrada a mano o la calculada desde tareas), `estado` (`Cursando` si el periodo esta abierto; si no `Aprobada` >= 3.0, `Reprobada` < 3.0 o `Sin nota`) y los promedios ponderados por creditos del semestre y del acumulado.
+- **Salida 200:** `{"cedula", "periodo", "periodo_abierto", "materias": [...], "promedio_semestre", "promedio_acumulado"}`.
+- **Errores:** `422` cedula/periodo vacio o periodo inexistente en `periodos`; `404` estudiante inexistente; `403` rol insuficiente.
 
 ---
 
-## Matrículas — `backend/app/routers/matriculas.py`
+## Matriculas — `routers/matriculas.py` (requieren sesion)
 
-Requiere `X-Usuario`/`X-Clave`.
-
-### `GET /matriculas/` (filtrado por rol)
-- **Salida 200:** `[{"id_matricula": "96317481", "cedula": "1001", "id_materia": "M01", "creditos": 4, "periodo": "2026-2", "fecha_matricula": "2026-11-06", "estado": "Activa"}]`.
-- **Visibilidad:**
-  - `Estudiante`: solo sus matrículas (`cedula` = su `id_persona`).
-  - `Profesor`: matrículas de las materias que dicta (`materias.id_profesor` = su `id_persona`).
-  - `Administrador`: todas.
-- **Errores:** `401` credenciales.
+### `GET /matriculas/`
+- **Visibilidad:** estudiante solo las suyas; profesor solo las de sus materias; admin todas.
+- **Salida 200:** `[{id_matricula, cedula, id_materia, creditos, periodo, fecha_matricula, estado}]`.
 
 ### `POST /matriculas/`
-- **Rol:** todos los roles (el estudiante se matricula a sí mismo usando su cédula).
-- **Entrada:**
-```json
-{"cedula": "1001", "id_materia": "M01", "periodo": "2026-2"}
-```
-- El servidor genera `id_matricula` (8 caracteres), toma `creditos` de la materia y fija `estado: "Activa"`.
-- **Salida 201:** la matrícula creada (incluye `fecha_matricula`).
-- **Errores:** `404` estudiante o materia inexistente; `409` ya matriculada en ese periodo o se supera 19 créditos en el periodo; `422` validación.
+- **Rol:** todos (el estudiante solo con **su propia cedula**, si no `403`; el admin sin restriccion).
+- **Entrada:** `{"cedula", "id_materia", "periodo"}`.
+- **Reglas:** periodo vigente (hoy dentro de `[fecha_inicio, fecha_fin]`, si no `422`), cupos disponibles (`409` si no hay), no duplicada en el periodo (`409`), creditos del periodo <= 19 (`409`).
+- **Salida 201:** la matricula creada. **Errores adicionales:** `404` estudiante/materia/periodo; `422`.
 
 ### `POST /matriculas/lote`
-- **Rol:** todos los roles.
-- **Entrada:**
-```json
-{"cedula": "1001", "periodo": "2026-2", "id_materias": ["M01", "M02", "M03"]}
-```
-- **Salida 201:**
-```json
-{"cedula": "1001", "periodo": "2026-2", "total_creditos": 10,
- "matriculas": [{"id_matricula": "a1b2c3d4", "id_materia": "M01", "creditos": 4}]}
-```
-- **Errores:** `404` estudiante o alguna materia inexistente; `409` materia repetida dentro del carrito o ya matriculada en el periodo; `422` total de créditos fuera de 6–19, campos vacíos. Si algo falla, no se guarda ninguna matrícula (transacción única).
+- **Rol:** todos (estudiante solo su cedula).
+- **Entrada:** `{"cedula", "periodo", "id_materias": [...]}`.
+- **Reglas (en orden):** periodo existe; ventana de fechas (`hoy < fecha_inicio` permite; `fecha_inicio <= hoy <= fecha_fin` devuelve `409` con `"El periodo 'X' ya empezo. Para cambios, usa adicion o cancelacion."`; `hoy > fecha_fin` devuelve `422`); estudiante sin matricula activa en el periodo (`409`) ni en curso en otro periodo (`409`); materias existentes, del plan del programa (`422`), sin repetidos (`409`), sin cupos (`409`), requisitos previos aprobados (`422`), total de creditos 6-19 (`422`) y sin cruce de horario (`422`). Todo se valida antes de insertar: si algo falla, no se guarda nada.
+- **Salida 201:** `{"cedula", "periodo", "total_creditos", "radicado", "matriculas": [{id_matricula, id_materia, creditos}]}` — el radicado (8 caracteres, unico) queda en `matriculas_lote` (V9).
+
+### `PUT /matriculas/{id_matricula}`
+- **Rol:** el propio estudiante o admin (`403` si no).
+- **Entrada:** `{"id_materias": [...]}` (reemplazo completo de las materias del estudiante en el periodo de esa matricula: agrega las que faltan y elimina junto con sus notas las que no esten) o `{"estado": "..."}` (cambia el estado de la fila referenciada).
+- **Reglas:** misma ventana que DELETE (antes de `fecha_inicio`; en curso `409`; terminado `422`) y las mismas validaciones del lote (plan, cupos, requisitos, creditos 6-19, cruce).
+- **Salida 200:** `{"id_matricula", "cedula", "id_materia", "creditos", "periodo", "fecha_matricula", "estado", "total_creditos", "materias": [{id_matricula, id_materia, creditos, estado}]}`.
+- **Errores:** `404` matricula inexistente o materias inexistentes; `409` repetidas/cupos/ventana en curso; `422` ventana terminada/plan/requisitos/creditos/cruce.
+
+### `DELETE /matriculas/{id_matricula}`
+- **Rol:** el propio estudiante o admin.
+- **Reglas:** misma ventana (antes de `fecha_inicio`; en curso `409`; despues de `fecha_fin` `422`). Borra primero las notas dependientes y luego la fila de matricula.
+- **Salida 200:** `{"eliminado": "<id_matricula>", "periodo": "<periodo>"}`.
+- **Errores:** `404` inexistente; `403` ajena; `409`/`422` por ventana.
 
 ---
 
-## Notas — `backend/app/routers/notas.py`
+## Notas — `routers/notas.py` (requieren sesion)
 
-Requiere `X-Usuario`/`X-Clave`.
-
-### `GET /notas/` (filtrado por rol)
-- **Salida 200:**
-```json
-[{"id_nota": "abdf9d7b", "id_matricula": "96317481", "id_materia": "M01",
-  "nota1": 4.0, "nota2": 3.5, "nota3": 4.5, "definitiva": 4.0, "estado": "Aprobado"}]
-```
-- **Visibilidad:**
-  - `Estudiante`: solo sus notas.
-  - `Profesor`: notas de sus materias (`materias.id_profesor` = su `id_persona`).
-  - `Administrador`: todas.
-- **Errores:** `401` credenciales.
+### `GET /notas/`
+- **Visibilidad:** estudiante solo las suyas; profesor solo las de sus materias; admin todas.
+- **Salida 200:** `[{id_nota, id_matricula, id_materia, nota1, nota2, nota3, definitiva, estado, calculada}]`.
+- **Estudiante ademas:** `actividades: [{titulo, tipo, calificacion, subida_en}]` por materia (entrega mas reciente de cada tarea calificada) y filas con `calculada: true` para matriculas sin nota a mano, cuyas N1/N2/N3 se calculan desde las tareas con `momento` (`calculo_notas.py`).
 
 ### `POST /notas/`
-- **Rol:** `Profesor` y `Administrador`.
-- **Entrada:**
-```json
-{"id_matricula": "96317481", "nota1": 4.0, "nota2": 3.5, "nota3": 4.5}
-```
-- El servidor genera `id_nota` (8 caracteres), toma `id_materia` de la matrícula, calcula `definitiva = round((n1+n2+n3)/3, 2)` y `estado: "Aprobado"` si `definitiva >= 3.0`, si no `"Reprobado"`.
-- **Salida 201:** la nota creada con `definitiva` y `estado`.
-- **Errores:** `404` matrícula inexistente; `409` la matrícula ya tiene nota; `422` notas fuera del rango 0.0–5.0.
+- **Rol:** `Profesor` (solo matriculas de sus materias) o `Administrador`; estudiante `403`.
+- **Entrada:** `{"id_matricula", "nota1", "nota2", "nota3"}` (0.0 a 5.0).
+- **Salida 201:** la nota creada; el servidor calcula `definitiva = round((n1+n2+n3)/3, 2)` y `estado: "Aprobado"` si `>= 3.0`, si no `"Reprobado"`.
+- **Errores:** `403`; `404` matricula inexistente; `409` ya tiene nota; `422` fuera de rango.
+
+### `GET /notas/sugerencias/{id_materia}`
+- **Rol:** el profesor de la materia o admin; estudiante `403`.
+- **Que devuelve:** sugerencia de solo lectura: N1/N2/N3 y definitiva calculadas desde las tareas con `momento` de esa materia para cada estudiante matriculado. Un momento sin calificaciones llega `null`, no 0.
+- **Salida 200:** `[{cedula, nombre, nota1, nota2, nota3, definitiva, estado}]`.
+- **Errores:** `403` materia ajena o rol estudiante; `404` materia inexistente.
 
 ---
 
-## PDF — `backend/app/routers/pdf.py`
+## Periodos — `routers/periodos.py`
 
-Requiere `X-Usuario`/`X-Clave`.
+### `GET /periodos/`
+- **Rol:** publico. **Salida 200:** `[{periodo, fecha_inicio, fecha_fin}]` (fechas `YYYY-MM-DD`).
 
-### `GET /pdf/matricula/{cedula}`
-- **Salida 200:** archivo PDF (`application/pdf`, `Recibo_Matricula_{cedula}.pdf`).
-- **Visibilidad:**
-  - `Estudiante`: solo su propia cédula (su `id_persona`); si no, `403`.
-  - `Profesor`: solo cédulas con matrículas activas en materias que dicta; si no, `403`.
-  - `Administrador`: cualquier cédula.
-- **Errores:** `403` sin permiso; `404` estudiante inexistente o sin matrículas; `422` cédula vacía.
+### `POST /periodos/`
+- **Rol:** solo `Administrador`. **Entrada:** `{"periodo", "fecha_inicio", "fecha_fin"}`.
+- **Salida 201:** el periodo creado. **Errores:** `403`; `409` duplicado; `422` formato invalido o inicio > fin.
+
+---
+
+## Tareas — `routers/tareas.py` (requieren sesion)
+
+### `POST /tareas/`
+- **Rol:** solo `Profesor` y solo en **sus** materias.
+- **Entrada (multipart):** `id_materia`, `titulo` (max 120), `descripcion`, `fecha_limite`, `tipo` (taller/quiz/examen/trabajo), `momento` (1 a 3, opcional) y `archivo` de apoyo opcional (PDF, MP4 o WebM, max 20 MB).
+- **Salida 201:** `{id_tarea, id_materia, titulo, descripcion, fecha_limite, tiene_apoyo, creada_por, creada_en, tipo, momento}`.
+- **Errores:** `403` no profesor o materia ajena; `404` (materia inexistente se reporta como materia ajena); `422` campos/tipo/momento/tamano invalidos.
+
+### `GET /tareas/?id_materia=...`
+- **Rol:** sesion (admin ve todas; profesor solo las de sus materias; estudiante solo las de sus materias con matricula activa en periodo vigente). `id_materia` es opcional y filtra.
+- **Salida 200:** `[{id_tarea, id_materia, materia, titulo, descripcion, fecha_limite, tiene_apoyo, creada_en, tipo, momento}]`. El estudiante recibe ademas `estado_entrega` (`Entregado`/`Pendiente`/`No entrego`), `fecha_entrega` y `calificacion`; profesor y admin reciben `entregas_recibidas` y `matriculados`.
+
+### `POST /tareas/{id_tarea}/entregas`
+- **Rol:** estudiante. **Entrada (multipart):** `archivo` (obligatorio salvo examen/quiz) y `comentario` opcional (max 300).
+- **Salida 201:** confirmacion de la entrega. Cuenta la entrega mas reciente.
+- **Errores:** `403`; `404` tarea inexistente; `422` archivo invalido o falta el obligatorio.
+
+### `GET /tareas/{id_tarea}/entregas`
+- **Rol:** profesor dueño de la materia o admin (estudiante `403`).
+- **Salida 200:** `{"entregas": [{id_entrega, cedula, nombre, subida_en, comentario, con_archivo, calificacion}], "no_entregaron": [{cedula, nombre}], "sin_calificacion": [...]}`.
+- **Errores:** `404` tarea inexistente; `403`.
+
+### `PUT /tareas/{id_tarea}/entregas/{id_entrega}/calificacion`
+- **Rol:** profesor dueño de la materia. **Entrada:** `{"calificacion": 4.5}` (0.0 a 5.0).
+- **Salida 200:** la calificacion guardada. **Errores:** `403`; `404` tarea/entrega inexistente; `422` fuera de rango.
+
+### `POST /tareas/{id_tarea}/calificaciones`
+- **Rol:** profesor dueño. **Entrada:** `{"cedula", "calificacion"}`. Para examenes y quizzes sin archivo: crea o actualiza la entrega con la calificacion directa.
+- **Salida 200/201:** confirmacion. **Errores:** `403`; `404`; `422`.
+
+### `GET /tareas/{id_tarea}/apoyo`
+- **Rol:** profesor dueño o estudiante matriculado en la materia. Devuelve el archivo de apoyo (PDF).
+- **Errores:** `404` tarea o apoyo inexistente; `403`.
+
+### `GET /tareas/{id_tarea}/entregas/{id_entrega}/archivo`
+- **Rol:** profesor dueño, admin o el estudiante autor de la entrega. Devuelve el archivo entregado.
+- **Errores:** `404` entrega inexistente; `403`.
+
+---
+
+## PDF — `routers/pdf.py` (requieren sesion)
+
+### `GET /pdf/matricula/{cedula}?periodo=...`
+- **Visibilidad:** estudiante solo su cedula; profesor solo cedulas matriculadas en sus materias; admin todas.
+- **Salida 200:** PDF del recibo del periodo (si se omite `periodo`, el mas reciente con matriculas). Incluye radicado, periodo, fecha y total de creditos.
+- **Errores:** `403`; `404` estudiante inexistente o sin matriculas; `422` cedula/periodo vacio.
 
 ### `GET /pdf/notas/{cedula}`
-- Igual que el anterior, pero genera `Reporte_Notas_{cedula}.pdf` (boletín de notas).
-- **Errores:** idénticos.
+- Misma visibilidad. **Salida 200:** PDF del boletin de notas. **Errores:** identicos.
 
 ---
 
 ## Matriz resumen de roles
 
-| Endpoint | Público | Estudiante | Profesor | Administrador |
+| Endpoint | Publico | Estudiante | Profesor | Admin |
 |---|---|---|---|---|
-| `GET /health`, `GET /` | ✅ | ✅ | ✅ | ✅ |
-| `POST /auth/login` | ✅ | ✅ | ✅ | ✅ |
-| `POST /auth/cambiar-clave` | — | ✅ (sus credenciales) | ✅ | ✅ |
-| `POST /auth/restablecer-clave` | — | ❌ | ❌ | ✅ |
-| `GET /facultades/ /programas/ /materias/ /profesores/ /estudiantes/` | ✅ | ✅ | ✅ | ✅ |
-| `POST /facultades/ /programas/ /materias/ /profesores/ /estudiantes/` | — | ❌ 403 | ❌ 403 | ✅ |
-| `GET /estudiantes/{cedula}/materias-disponibles` | ✅ | ✅ | ✅ | ✅ |
-| `GET /matriculas/` | — | solo las suyas | solo sus materias | todas |
-| `POST /matriculas/`, `POST /matriculas/lote` | — | ✅ | ✅ | ✅ |
-| `GET /notas/` | — | solo las suyas | solo sus materias | todas |
-| `POST /notas/` | — | ❌ | ✅ | ✅ |
-| `GET /pdf/matricula/{cedula}`, `GET /pdf/notas/{cedula}` | — | solo su cédula | solo sus estudiantes | todas |
+| `GET /`, `GET /health` | si | si | si | si |
+| `POST /auth/login`, `POST /auth/cambiar-clave` | si | si | si | si |
+| `GET` de catalogos y `materias-disponibles` | si | si | si | si |
+| `POST` de catalogos, `POST/PUT/DELETE /materias/{id}`, `/programas/{id}/plan/*`, `POST /periodos/`, `POST /auth/restablecer-clave`, crear cuentas | no | 403 | 403 | si |
+| `GET /matriculas/`, `GET /notas/` | no | solo las suyas | solo sus materias | todas |
+| `POST /matriculas/`, `POST /matriculas/lote` | no | solo su cedula | si | si |
+| `PUT/DELETE /matriculas/{id}` | no | solo la propia | 403 | si |
+| `GET /estudiantes/{cedula}/matriculas` | no | solo la propia | 403 | si |
+| `POST /notas/`, `GET /notas/sugerencias/{id}` | no | 403 | solo sus materias | si |
+| `POST /tareas/` | no | 403 | solo sus materias | 403 |
+| `GET /tareas/` | no | sus materias activas | sus materias | todas |
+| `POST /tareas/{id}/entregas` | no | si | 403 | 403 |
+| `GET /tareas/{id}/entregas`, calificaciones | no | 403 | dueño de la materia | solo ver |
+| `GET /pdf/*` | no | su cedula | sus estudiantes | todas |
 
-## Cómo probar con dos usuarios (PowerShell)
+## Como probar rapido (PowerShell)
 
 ```powershell
-# Estudiante (X-Usuario/X-Clave de una cuenta con rol Estudiante e id_persona = cédula)
-$h_est = @{ "X-Usuario" = "1001"; "X-Clave" = "SU_CLAVE" }
-Invoke-RestMethod -Headers $h_est http://localhost:8000/matriculas/          # solo sus matrículas
-Invoke-RestMethod -Headers $h_est http://localhost:8000/pdf/matricula/1002   # 403
-
-# Administrador (cuenta admin; id_persona = null)
-$h_adm = @{ "X-Usuario" = "admin"; "X-Clave" = "SU_CLAVE_ADMIN" }
-Invoke-RestMethod -Headers $h_adm http://localhost:8000/matriculas/          # todas
-Invoke-RestMethod -Headers $h_adm -Method Post -Uri http://localhost:8000/facultades/ `
-  -ContentType "application/json" -Body '{"id_facultad":"F02","nombre_facultad":"Salud"}'   # 201
-Invoke-RestMethod http://localhost:8000/facultades/                          # público, sin encabezados
-
-# Lote (carrito completo)
-Invoke-RestMethod -Method Post -Uri http://localhost:8000/matriculas/lote -Headers $h_est `
-  -ContentType "application/json" -Body '{"cedula":"1001","periodo":"2026-2","id_materias":["M01","M02","M03"]}'
+$h = @{ "X-Usuario" = "admin"; "X-Clave" = "SU_CLAVE" }
+Invoke-RestMethod http://localhost:8000/health
+Invoke-RestMethod -Headers $h http://localhost:8000/matriculas/
+Invoke-RestMethod -Headers $h http://localhost:8000/estudiantes/1001/matriculas?periodo=2026-2
 ```
-
----
-
-# Actualización: cupos, periodos, roles y creación de cuentas
-
-Agregados en `feature/sistema-completo`. Todos los POST de matrícula y notas exigen credenciales (`X-Usuario`/`X-Clave`); los errores de rol (403) se evalúan **antes** de las validaciones de base de datos.
-
-## `GET /periodos/` (nuevo)
-- **Rol:** público (lo necesita el panel admin y el carrito del estudiante).
-- **Salida 200:** `[{"periodo":"2026-2","fecha_inicio":"2026-11-01","fecha_fin":"2026-12-20"}]` (fechas `YYYY-MM-DD`).
-
-## `POST /periodos/` (nuevo)
-- **Rol:** solo `Administrador` (403 si no).
-- **Entrada:** `{"periodo":"2026-3","fecha_inicio":"2027-01-10","fecha_fin":"2027-03-01"}`.
-- **Salida 201:** el periodo creado.
-- **Errores:** `403` no admin · `409` periodo duplicado · `422` fecha inválida o inicio > fin.
-
-## Reglas nuevas en matrículas (`POST /matriculas/` y `POST /matriculas/lote`)
-- **Rol:** `Estudiante` solo puede matricular **su propia cédula** (`usuarios.id_persona`); otra → **403**. `Administrador` sin restricción.
-- **Periodo:** debe existir en la tabla `periodos` (migración `V3__periodos.sql`) y la fecha actual debe estar dentro de `[fecha_inicio, fecha_fin]`; si no → **422** con el rango y la fecha de hoy.
-- **Cupos:** `materias.cupos` menos matriculados de esa materia en el periodo (`COUNT` en SQL; no se descuenta en `materias`); sin cupo → **409** con el **nombre de la materia**. En el lote se valida todo antes de insertar: si una materia no tiene cupo, **no se guarda ninguna** (transacción única).
-- **Otros errores:** `409` duplicado estudiante+materia+periodo · `409` supera 19 créditos · `422` total menor a 6 (solo lote) · `404` estudiante o materia inexistente.
-
-## Reglas nuevas en notas (`POST /notas/`)
-- **Rol:** requiere sesión. `Estudiante` → siempre **403**. `Profesor` solo registra notas en matrículas de materias donde `materias.id_profesor = su id_persona`; otra materia → **403**. `Administrador` sin restricción.
-- `GET /notas/`: estudiante ve solo sus notas; profesor, solo las de sus materias.
-- **Errores:** `404` matrícula inexistente · `409` ya tiene nota · `422` notas fuera de 0.0–5.0.
-
-## `POST /auth/crear-cuenta-estudiante` (nuevo, solo admin)
-- **Entrada:** `{"id_estudiante":"1002"}`.
-- **Salida 201:** `{"usuario":"1002","rol":"Estudiante","clave_temporal":"********"}` — la clave se muestra **una sola vez**; la cuenta se crea con `debe_cambiar_clave=true`.
-- **Errores:** `403` no admin · `404` el estudiante no existe · `409` la cuenta ya existe.
-
-## `POST /auth/crear-cuenta-profesor` (nuevo, solo admin)
-- **Entrada:** `{"id_profesor":"PR04"}`.
-- **Salida 201:** `{"usuario":"PR04","rol":"Profesor","clave_temporal":"********"}`.
-- **Errores:** `403` no admin · `404` el profesor no existe · `409` la cuenta ya existe.
-
-## Recibo de matrícula con radicado (`GET /pdf/matricula/{cedula}`)
-El encabezado del PDF ahora incluye: **Radicado** (primeros 8 caracteres del `id_matricula` del primer registro del periodo, en mayúsculas), **Periodo**, **Fecha de matrícula** y la tabla con **TOTAL CRÉDITOS**.
