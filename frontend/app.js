@@ -13,7 +13,7 @@ const MENUS = {
     ['periodos','Periodos','⏱'], ['cuentas','Cuentas','👤'],
   ],
   Estudiante: [
-    ['matricular','Matricular','✓'], ['misnotas','Mis notas','✎'], ['mistareas','Mis tareas','❑'], ['docs','Mis documentos','⇩'],
+    ['matricular','Matricular','✓'], ['registro','Registro académico','◫'], ['misnotas','Mis notas','✎'], ['mistareas','Mis tareas','❑'], ['docs','Mis documentos','⇩'],
   ],
   Profesor: [
     ['ingresarnotas','Ingresar notas','✎'], ['tareas','Tareas','❑'], ['reportes','Reportes','⇩'],
@@ -317,13 +317,13 @@ function navItems(){return MENUS[SESION?.rol]||[['resumen','Resumen','◈']];}
 function render(){
  if(!SESION) return;
  cierraLogoMenu();
- const titulo={resumen:'Resumen académico',matricular:'Matricular',misnotas:'Mis notas',mistareas:'Mis tareas',docs:'Mis documentos',ingresarnotas:'Ingresar notas',tareas:'Tareas',reportes:'Reportes',cuentas:'Cuentas'};
+ const titulo={resumen:'Resumen académico',matricular:'Matricular',registro:'Registro académico',misnotas:'Mis notas',mistareas:'Mis tareas',docs:'Mis documentos',ingresarnotas:'Ingresar notas',tareas:'Tareas',reportes:'Reportes',cuentas:'Cuentas'};
  $('#breadcrumb').textContent=titulo[current]||modules[current]?.title||'Resumen';
  $('#title').textContent=titulo[current]||modules[current]?.title||'Resumen académico';
-  $('#subtitle').textContent={resumen:'Todo según tu rol: '+SESION.rol,matricular:'Arma tu carrito y confirma: total entre 6 y 19 créditos.',misnotas:'Tus calificaciones registradas.',mistareas:'Las tareas de tus materias: entrega a tiempo.',docs:'Descarga tus reportes en PDF.',ingresarnotas:'Califica a los estudiantes de tus materias.',tareas:'Crea tareas en tus materias y revisa quién entregó.',reportes:'Reporte de notas de tus estudiantes.',cuentas:'Crea cuentas y restablece claves.',periodos:'Ventanas de matrícula.'}[current]||modules[current]?.description||'';
+  $('#subtitle').textContent={resumen:'Todo según tu rol: '+SESION.rol,matricular:'Arma tu carrito y confirma: total entre 6 y 19 créditos.',registro:'Tus materias, calificaciones y promedios por periodo.',misnotas:'Tus calificaciones registradas.',mistareas:'Las tareas de tus materias: entrega a tiempo.',docs:'Descarga tus reportes en PDF.',ingresarnotas:'Califica a los estudiantes de tus materias.',tareas:'Crea tareas en tus materias y revisa quién entregó.',reportes:'Reporte de notas de tus estudiantes.',cuentas:'Crea cuentas y restablece claves.',periodos:'Ventanas de matrícula.'}[current]||modules[current]?.description||'';
  $('#nav').innerHTML=navItems().map(([k,t,i])=>`<button data-page="${k}" class="${k===current?'active':''}" ${k===current?'aria-current="page"':''}><span aria-hidden="true">${i}</span>${t}</button>`).join('');
  $('#nav').querySelectorAll('button').forEach(b=>b.onclick=()=>go(b.dataset.page));
- const vistas={resumen:vistaResumen,matricular:vistaMatricular,misnotas:vistaMisNotas,mistareas:vistaMisTareas,docs:vistaDocs,ingresarnotas:vistaIngresarNotas,tareas:vistaTareas,reportes:vistaReportes,cuentas:vistaCuentas};
+ const vistas={resumen:vistaResumen,matricular:vistaMatricular,registro:vistaRegistroAcademico,misnotas:vistaMisNotas,mistareas:vistaMisTareas,docs:vistaDocs,ingresarnotas:vistaIngresarNotas,tareas:vistaTareas,reportes:vistaReportes,cuentas:vistaCuentas};
  if(vistas[current]){vistas[current]();return;}
  vistaCatalogo();
 }
@@ -728,6 +728,7 @@ async function vistaPlanPrograma(idPrograma){
 // El tablero es la vista por defecto; la lista conserva el carrito de siempre.
 let carrito=new Set();
 let vistaMaterias='tablero';
+let periodoGuardada=null; // periodo elegido en "Mi matrícula del periodo" (solo en memoria)
 function formatoHorario(m){
  if(m.dia&&m.hora_inicio&&m.hora_fin)return `${m.dia} ${String(m.hora_inicio).slice(0,5)}–${String(m.hora_fin).slice(0,5)}`;
  return 'Sin horario';
@@ -809,7 +810,13 @@ async function vistaMatricular(){
    return `<section class="tablero-columna"><header class="tablero-columna-cab"><h3>${n?`Semestre ${n}`:'Sin semestre'}</h3><span class="count">${lista.length} ${lista.length===1?'materia':'materias'}</span></header><div class="tablero-cards">${lista.map(tarjeta).join('')}</div></section>`;
   }).join('');
   const opciones=materias.map(itemLista).join('');
-  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel matricular-panel"><div class="panel-top matricular-top"><div><h2>Materias de tu plan de estudios</h2><p>${materias.length?'Elige por semestre en el tablero. Arrastra una tarjeta a "Tu carrito" o haz clic en ella.':'Materias del plan de tu programa.'}</p></div>${materias.length?`<div class="vista-switch" role="group" aria-label="Vista de materias"><button type="button" data-vista="tablero" class="${vistaMaterias==='tablero'?'activo':''}" aria-pressed="${vistaMaterias==='tablero'}">▦ Tablero</button><button type="button" data-vista="lista" class="${vistaMaterias==='lista'?'activo':''}" aria-pressed="${vistaMaterias==='lista'}">☰ Lista</button></div>`:''}</div>${materias.length?`<div class="matricular-cuerpo"><div class="vista-tablero" id="vista-tablero"${vistaMaterias==='tablero'?'':' hidden'}><div class="tablero-wrap"><div class="tablero-columnas">${tablero}</div><aside class="carrito-zona" id="carrito-zona" aria-label="Tu carrito"><div class="carrito-zona-cab"><h3>Tu carrito</h3><span class="carrito-cuenta" id="carrito-cuenta">0</span></div><div class="carrito-zona-lista" id="carrito-zona-lista"></div><p class="carrito-pista">Entre 6 y 19 créditos en total para confirmar.</p></aside></div></div><div class="vista-lista" id="vista-lista"${vistaMaterias==='lista'?'':' hidden'}><div class="carrito">${opciones}</div></div></div>`:vacio('▥','Tu programa aún no tiene plan de estudios cargado','Cuando tu programa cargue su plan de estudios, las materias aparecerán aquí para armar tu matrícula.')}<div class="panel-top matricular-pie"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted" id="periodo-matricula">${periodoMatricula?`Periodo ${esc(periodoMatricula)} · entre 6 y 19 créditos`:'No hay un periodo de matrícula abierto'}</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
+  // Periodos para "Mi matrícula del periodo": de más reciente a más antiguo
+  const periodosGuardada=[...(periodos||[])].sort((a,b)=>String(b.fecha_inicio||'').localeCompare(String(a.fecha_inicio||''))||clavePeriodo(b.periodo)-clavePeriodo(a.periodo));
+  if(!periodoGuardada||!periodosGuardada.some(p=>p.periodo===periodoGuardada))periodoGuardada=(periodoMatricula&&periodosGuardada.some(p=>p.periodo===periodoMatricula))?periodoMatricula:(periodosGuardada[0]?.periodo||null);
+  const opcionesGuardada=periodosGuardada.map(p=>`<option value="${esc(p.periodo)}"${p.periodo===periodoGuardada?' selected':''}>${esc(p.periodo)}</option>`).join('');
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias disponibles',valor:materias.length},{etiqueta:'Créditos seleccionados',valor:'0 créditos',clase:'malo',id:'ind-creditos'}])}<section class="panel matricula-guardada" id="matricula-guardada"><div class="panel-top matricula-guardada-top"><div><h2>Mi matrícula del periodo</h2><p id="matricula-guardada-sub">Consultando tu matrícula guardada...</p></div>${opcionesGuardada?`<label class="selector-periodo" for="matricula-periodo"><span>Periodo</span><select id="matricula-periodo" aria-label="Periodo de la matrícula guardada">${opcionesGuardada}</select></label>`:''}</div><div class="matricula-guardada-cuerpo" id="matricula-guardada-cuerpo">${vacio('⏳','Cargando tu matrícula','Un momento, consultamos las materias registradas en el periodo.')}</div></section><section class="panel matricular-panel"><div class="panel-top matricular-top"><div><h2>Materias de tu plan de estudios</h2><p>${materias.length?'Elige por semestre en el tablero. Arrastra una tarjeta a "Tu carrito" o haz clic en ella.':'Materias del plan de tu programa.'}</p></div>${materias.length?`<div class="vista-switch" role="group" aria-label="Vista de materias"><button type="button" data-vista="tablero" class="${vistaMaterias==='tablero'?'activo':''}" aria-pressed="${vistaMaterias==='tablero'}">▦ Tablero</button><button type="button" data-vista="lista" class="${vistaMaterias==='lista'?'activo':''}" aria-pressed="${vistaMaterias==='lista'}">☰ Lista</button></div>`:''}</div>${materias.length?`<div class="matricular-cuerpo"><div class="vista-tablero" id="vista-tablero"${vistaMaterias==='tablero'?'':' hidden'}><div class="tablero-wrap"><div class="tablero-columnas">${tablero}</div><aside class="carrito-zona" id="carrito-zona" aria-label="Tu carrito"><div class="carrito-zona-cab"><h3>Tu carrito</h3><span class="carrito-cuenta" id="carrito-cuenta">0</span></div><div class="carrito-zona-lista" id="carrito-zona-lista"></div><p class="carrito-pista">Entre 6 y 19 créditos en total para confirmar.</p></aside></div></div><div class="vista-lista" id="vista-lista"${vistaMaterias==='lista'?'':' hidden'}><div class="carrito">${opciones}</div></div></div>`:vacio('▥','Tu programa aún no tiene plan de estudios cargado','Cuando tu programa cargue su plan de estudios, las materias aparecerán aquí para armar tu matrícula.')}<div class="panel-top matricular-pie"><div><h2 id="total-creditos">Total: 0 créditos</h2><p class="muted" id="periodo-matricula">${periodoMatricula?`Periodo ${esc(periodoMatricula)} · entre 6 y 19 créditos`:'No hay un periodo de matrícula abierto'}</p></div><button id="confirmar-carrito" disabled>Matricular selección</button></div></section>`;
+  const selGuardada=$('#matricula-periodo');
+  if(selGuardada)selGuardada.onchange=e=>{periodoGuardada=e.target.value;pintaMatriculaGuardada(materias,periodos,periodoMatricula);};
   const seleccionadas=()=>materias.filter(m=>carrito.has(m.id_materia));
   const total=()=>seleccionadas().reduce((s,m)=>s+Number(m.creditos||0),0);
   const pintaTotal=()=>{
@@ -935,8 +942,81 @@ async function vistaMatricular(){
   };
   sincronizar();
   aplicarVista(false);
+  pintaMatriculaGuardada(materias,periodos,periodoMatricula);
   animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar las materias',mensajeRol(error));}
+}
+
+// ====== Estudiante: Mi matrícula del periodo (guardada, editable solo antes de fecha_inicio) ======
+async function pintaMatriculaGuardada(materias,periodos,periodoMatricula){
+ const cuerpo=$('#matricula-guardada-cuerpo');if(!cuerpo)return;
+ const sub=$('#matricula-guardada-sub');
+ const ordenados=[...(periodos||[])].sort((a,b)=>String(b.fecha_inicio||'').localeCompare(String(a.fecha_inicio||''))||clavePeriodo(b.periodo)-clavePeriodo(a.periodo));
+ if(!ordenados.length){
+  if(sub)sub.textContent='No hay periodos configurados.';
+  cuerpo.innerHTML=vacio('⏱','No hay periodos configurados','Cuando el administrador cree periodos, aquí verás tu matrícula guardada.');
+  animaLlegada(cuerpo);return;
+ }
+ if(!periodoGuardada||!ordenados.some(p=>p.periodo===periodoGuardada))periodoGuardada=(periodoMatricula&&ordenados.some(p=>p.periodo===periodoMatricula))?periodoMatricula:ordenados[0].periodo;
+ const seleccionado=periodoGuardada;
+ const sel=$('#matricula-periodo');if(sel&&sel.value!==seleccionado)sel.value=seleccionado;
+ cuerpo.innerHTML=vacio('⏳','Cargando tu matrícula','Un momento, consultamos las materias registradas en el periodo.');
+ let datos=null;
+ try{datos=await apiAuth(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/matriculas?periodo=${encodeURIComponent(seleccionado)}`);}
+ catch(error){
+  if(current!=='matricular')return;
+  cuerpo.innerHTML=vacio('⚠','No se pudo cargar tu matrícula',mensajeRol(error));
+  animaLlegada(cuerpo);return;
+ }
+ if(current!=='matricular'||!SESION||periodoGuardada!==seleccionado)return;
+ const meta=ordenados.find(p=>p.periodo===seleccionado)||{};
+ const hoy=new Date();
+ const empieza=meta.fecha_inicio?new Date(meta.fecha_inicio+'T00:00:00'):null;
+ const termina=meta.fecha_fin?new Date(meta.fecha_fin+'T23:59:59'):null;
+ const noEmpezado=!!(empieza&&hoy<empieza);
+ const terminado=!!(termina&&hoy>termina);
+ const guardadas=datos.materias||[];
+ const totalCreditos=guardadas.reduce((s,m)=>s+Number(m.creditos||0),0);
+ if(sub)sub.textContent=guardadas.length?`${guardadas.length} ${guardadas.length===1?'materia registrada':'materias registradas'} · ${totalCreditos} créditos${noEmpezado?' · el periodo aún no comienza: puedes editarla':(terminado?' · periodo terminado, solo lectura':' · periodo en curso, solo lectura')}`:'Sin matrícula en este periodo.';
+ if(!guardadas.length){
+  cuerpo.innerHTML=vacio('▤','No tienes matrícula registrada en este periodo','Cuando confirmes una matrícula en este periodo, la verás aquí.');
+  animaLlegada(cuerpo);return;
+ }
+ const idsGuardadas=guardadas.map(m=>m.id_materia);
+ const anchor=guardadas[0].id_matricula;
+ const claseEstado=e=>e==='Aprobada'?'estado-aprobada':e==='Reprobada'?'estado-reprobada':e==='Sin nota'?'estado-sin-nota':'estado-cursando';
+ const tarjeta=m=>`<article class="materia-card ${claseEstado(m.estado)}"><div class="materia-card-top"><span class="chip chip-codigo">${esc(m.id_materia)}</span><span class="materia-card-creditos">${esc(m.creditos)} créditos</span></div><strong class="materia-card-nombre">${esc(m.nombre_curso)}</strong><div class="materia-card-pie"><div class="materia-card-estado"><span class="estado-punto" aria-hidden="true"></span><span>${esc(m.estado||'—')}</span></div>${noEmpezado?`<button type="button" class="btn-quitar-materia" data-id="${esc(m.id_materia)}" data-nombre="${esc(m.nombre_curso)}">Quitar</button>`:`<span class="materia-card-cta" aria-hidden="true">Solo lectura</span>`}</div></article>`;
+ const agregables=(materias||[]).filter(m=>!idsGuardadas.includes(m.id_materia)&&estadoMateria(m).clase!=='bloqueada');
+ const opcionesAgregar=agregables.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)} (${esc(m.creditos)} créditos)</option>`).join('');
+ const acciones=noEmpezado?`<div class="matricula-guardada-acciones"><label class="selector-periodo" for="agregar-materia"><span>Agregar materia</span><select id="agregar-materia" aria-label="Materia para agregar"${opcionesAgregar?'':' disabled'}>${opcionesAgregar||'<option value="">No quedan materias del plan por agregar</option>'}</select></label><button type="button" class="btn-agregar-materia" id="btn-agregar-materia"${opcionesAgregar?'':' disabled'}>Agregar</button><button type="button" class="btn-eliminar-matricula" id="btn-eliminar-matricula">Eliminar matrícula</button><p class="matricula-guardada-pista">Los cambios reemplazan tu matrícula guardada y se aplican porque el periodo aún no comienza.</p></div>`:'';
+ cuerpo.innerHTML=`<div class="matricula-guardada-cards">${guardadas.map(tarjeta).join('')}</div>${acciones}`;
+ const guardarMaterias=async(nuevasIds,mensajeOk)=>{
+  try{
+   const res=await apiAuth(`/matriculas/${encodeURIComponent(anchor)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_materias:nuevasIds})});
+   notice(`${mensajeOk}: ${res.materias.length} ${res.materias.length===1?'materia':'materias'}, ${res.total_creditos} créditos.`,true);
+   await vistaMatricular();
+  }catch(error){notice(error.status===409?error.message:mensajeRol(error));}
+ };
+ cuerpo.querySelectorAll('.btn-quitar-materia').forEach(b=>b.onclick=()=>guardarMaterias(idsGuardadas.filter(id=>id!==b.dataset.id),`'${b.dataset.nombre}' quitada`));
+ const btnAgregar=$('#btn-agregar-materia');
+ if(btnAgregar&&!btnAgregar.disabled)btnAgregar.onclick=()=>{
+  const id=$('#agregar-materia')?.value;
+  if(!id){notice('Elige una materia para agregar.');return;}
+  guardarMaterias([...idsGuardadas,id],'Materia agregada');
+ };
+ const btnEliminar=$('#btn-eliminar-matricula');
+ if(btnEliminar)btnEliminar.onclick=async()=>{
+  btnEliminar.disabled=true;btnEliminar.textContent='Eliminando…';
+  try{
+   for(const m of guardadas)await apiAuth(`/matriculas/${encodeURIComponent(m.id_matricula)}`,{method:'DELETE'});
+   notice('Matrícula eliminada del periodo.',true);
+   await vistaMatricular();
+  }catch(error){
+   notice(error.status===409?error.message:mensajeRol(error));
+   await vistaMatricular();
+  }
+ };
+ animaLlegada(cuerpo);
 }
 
 // ====== Estudiante: Mis notas ======
@@ -958,6 +1038,86 @@ async function vistaMisNotas(){
   $('#view').innerHTML=`${franja([{etiqueta:'Materias con nota',valor:notas.length},{etiqueta:'Actividades calificadas',valor:totalActividades},{etiqueta:'Promedio de definitivas',valor:promedio}])}<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>${seccionActividades}`;
   animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus notas',mensajeRol(error));}
+}
+
+// ====== Estudiante: Registro académico por periodo (solo lectura) ======
+let periodoRegistro=null; // estado solo en memoria
+const clavePeriodo=p=>{const m=String(p??'').match(/(\d{4})\D*(\d+)/);return m?Number(m[1])*100+Number(m[2]):0;};
+function notaRegistro(valor){
+ const n=Number(valor);
+ return valor==null||valor===''||Number.isNaN(n)?null:n;
+}
+function formatoNotaRegistro(valor,decimales){
+ const n=notaRegistro(valor);
+ return n==null?'—':n.toFixed(decimales);
+}
+function estadoRegistroAcademico(materia,periodoAbierto){
+ if(periodoAbierto)return 'Cursando';
+ const nota=notaRegistro(materia.nota_final??materia.calificacion);
+ if(nota==null)return 'Sin nota';
+ return nota>=3?'Aprobada':'Reprobada';
+}
+function chipEstadoRegistro(estado){
+ const clase=estado==='Aprobada'?'estado-aprobada':estado==='Reprobada'?'estado-reprobada':estado==='Sin nota'?'estado-sin-nota':'estado-cursando';
+ return `<span class="chip ${clase}">${esc(estado)}</span>`;
+}
+function filaRegistroAcademico(materia,periodoAbierto){
+ const estado=estadoRegistroAcademico(materia,periodoAbierto);
+ return `<tr><td><span class="id">${esc(materia.id_materia)}</span></td><td>${esc(materia.nombre_curso)}</td><td>${esc(materia.creditos)}</td><td>${formatoNotaRegistro(materia.calificacion,1)}</td><td>${formatoNotaRegistro(materia.nota_final,3)}</td><td>${chipEstadoRegistro(estado)}</td></tr>`;
+}
+function tarjetasRegistroAcademico(datos){
+ const acumulado=notaRegistro(datos.promedio_acumulado);
+ const situacion=acumulado==null?'—':(acumulado>=3?'Normal':'En riesgo');
+ const clase=acumulado==null?'':(acumulado>=3?'ok':'malo');
+ return `<section class="stats stats-registro" aria-label="Resumen del periodo"><div class="stat"><span>Promedio Semestre</span><strong>${formatoNotaRegistro(datos.promedio_semestre,2)}</strong><span>Ponderado por créditos</span></div><div class="stat"><span>Promedio Acumulado</span><strong>${formatoNotaRegistro(datos.promedio_acumulado,2)}</strong><span>Histórico del estudiante</span></div><div class="stat${clase?' '+clase:''}"><span>Situación Académica</span><strong>${esc(situacion)}</strong><span>${acumulado==null?'Sin promedio acumulado':'Umbral: 3.0'}</span></div></section>`;
+}
+async function vistaRegistroAcademico(){
+ $('#refresh').hidden=false;
+ if(SESION.rol!=='Estudiante'){$('#view').innerHTML=vacio('◫','No tienes permiso para esta acción','Inicia sesión con la cuenta de estudiante adecuada.');return;}
+ $('#view').innerHTML=vacio('⏳','Cargando registro académico','Un momento, consultamos tus periodos, materias y promedios.');
+ try{
+  const [matriculas,periodos]=await Promise.all([apiAuth('/matriculas/'),api('/periodos/')]);
+  if(current!=='registro')return;
+  const conMatricula=new Set((matriculas||[]).map(m=>m.periodo).filter(Boolean));
+  const porCodigo=new Map((periodos||[]).map(p=>[p.periodo,p]));
+  // Se listan todos los periodos con matrículas; los que no están configurados
+  // se muestran con un aviso en lugar de consultar un historial que fallaría.
+  const disponibles=[...conMatricula].map(periodo=>{
+   const meta=porCodigo.get(periodo);
+   return {periodo,fecha_inicio:meta?.fecha_inicio||'',configurado:!!meta};
+  }).sort((a,b)=>{
+   const fa=a.fecha_inicio?String(a.fecha_inicio):'',fb=b.fecha_inicio?String(b.fecha_inicio):'';
+   if(fa&&fb)return fb.localeCompare(fa);
+   if(fa)return -1;
+   if(fb)return 1;
+   return clavePeriodo(b.periodo)-clavePeriodo(a.periodo);
+  });
+  if(!disponibles.length){
+   $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Registro académico</h2><p>Consulta por periodo tus materias, calificaciones y promedios.</p></div></div>${vacio('▤','Aún no tienes materias registradas en este periodo','Cuando registres tu matrícula, aquí verás el detalle por periodo.')}</section>`;
+   animaLlegada($('#view'));return;
+  }
+  if(!periodoRegistro||!disponibles.some(p=>p.periodo===periodoRegistro))periodoRegistro=disponibles[0].periodo;
+  const seleccionado=periodoRegistro;
+  const opcion=disponibles.find(p=>p.periodo===seleccionado);
+  const opciones=disponibles.map(p=>`<option value="${esc(p.periodo)}"${p.periodo===seleccionado?' selected':''}>${esc(p.periodo)}</option>`).join('');
+  if(!opcion?.configurado){
+   $('#view').innerHTML=`<section class="registro-top"><div><p class="eyebrow">PERIODO ACADÉMICO</p><h2>${esc(seleccionado)}</h2><p>Periodo no configurado en el sistema.</p></div><label class="registro-select" for="registro-periodo"><span>Periodo</span><select id="registro-periodo">${opciones}</select></label></section>${tarjetasRegistroAcademico({promedio_semestre:null,promedio_acumulado:null})}<section class="panel"><div class="panel-top"><div><h2>Historial no disponible</h2><p>No se puede consultar este periodo.</p></div></div>${vacio('⚠','Periodo no configurado',`El periodo ${seleccionado} tiene matrículas, pero no está registrado en la configuración de periodos. No se puede consultar el historial.`)}</section>`;
+   $('#registro-periodo').onchange=e=>{periodoRegistro=e.target.value;vistaRegistroAcademico();};
+   animaLlegada($('#view'));return;
+  }
+  const datos=await apiAuth(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/matriculas?periodo=${encodeURIComponent(seleccionado)}`);
+  if(current!=='registro'||periodoRegistro!==seleccionado)return;
+  const materias=datos.materias||[];
+  const filas=materias.map(m=>filaRegistroAcademico(m,datos.periodo_abierto)).join('');
+  const detallePeriodo=datos.periodo_abierto?'Periodo en curso: las materias figuran como Cursando.':'Periodo cerrado: el estado depende de la nota final.';
+  $('#view').innerHTML=`<section class="registro-top"><div><p class="eyebrow">PERIODO ACADÉMICO</p><h2>${esc(datos.periodo)}</h2><p>${esc(detallePeriodo)}</p></div><label class="registro-select" for="registro-periodo"><span>Periodo</span><select id="registro-periodo">${opciones}</select></label></section>${tarjetasRegistroAcademico(datos)}<section class="panel"><div class="panel-top"><div><h2>Materias del periodo</h2><p>${materias.length} ${materias.length===1?'materia registrada':'materias registradas'} · vista de solo lectura</p></div></div>${materias.length?`<div class="table-wrap"><table class="tabla-registro"><thead><tr><th>ID Curso</th><th>Descripción</th><th>Créditos</th><th>Calif</th><th>Notas</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div>`:vacio('▤','Aún no tienes materias registradas en este periodo','Cuando registres tu matrícula, aquí verás el detalle de este periodo.')}</section>`;
+  $('#registro-periodo').onchange=e=>{periodoRegistro=e.target.value;vistaRegistroAcademico();};
+  animaLlegada($('#view'));
+ }catch(error){
+  if(current!=='registro')return;
+  $('#view').innerHTML=vacio('⚠','No se pudo cargar el registro académico',mensajeRol(error));
+  animaLlegada($('#view'));
+ }
 }
 
 // ====== Descarga de PDF con credenciales ======

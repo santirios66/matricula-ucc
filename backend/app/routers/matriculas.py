@@ -311,7 +311,10 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
     conn = obtener_conexion()
     try:
         with conn.cursor() as cur:
-            # 0. El periodo debe existir y estar vigente
+            # 0. El periodo debe existir. La ventana se rige por fecha_inicio:
+            # antes de fecha_inicio se permite; desde fecha_inicio hasta
+            # fecha_fin responde 409 (paso 1b); despues de fecha_fin responde
+            # 422 por estar fuera del rango de matricula.
             cur.execute(
                 "SELECT fecha_inicio, fecha_fin FROM periodos WHERE periodo = %s",
                 (periodo,),
@@ -324,11 +327,11 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                 )
             fecha_inicio, fecha_fin = fila_periodo
             hoy = date.today()
-            if not (fecha_inicio <= hoy <= fecha_fin):
+            if hoy > fecha_fin:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
-                        f"El periodo '{periodo}' está fuera del rango de matrícula "
+                        f"El periodo '{periodo}' esta fuera del rango de matricula "
                         f"({fecha_inicio} a {fecha_fin}); hoy es {hoy}"
                     ),
                 )
@@ -346,11 +349,9 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                     detail=f"No existe el estudiante con cédula '{cedula}'",
                 )
             id_programa, nombre_programa = fila_estudiante
-            # 1b. Ventana de matricula: solo se puede matricular antes de fecha_inicio.
-            # Desde fecha_inicio el periodo ya empezo y se bloquea con 409.
-            # (El check de rango completo fecha_inicio..fecha_fin ya ocurrio arriba
-            # para el caso de periodo vencido / fuera de rango; aqui refinamos
-            # la restriccion de pre-inicio.)
+            # 1b. Ventana de matricula: antes de fecha_inicio se permite;
+            # desde fecha_inicio el periodo ya empezo y se bloquea con 409.
+            # Despues de fecha_fin el paso 0 ya respondio 422.
             if hoy >= fecha_inicio:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -730,17 +731,24 @@ def actualizar_matricula(
     cambios: MatriculaUpdate,
     sesion: dict = Depends(autenticar),
 ):
-    """Cambia el estado de una matricula si el periodo aun no ha comenzado.
+    """Reemplaza las materias de una matricula o cambia su estado.
 
-    Solo el propio estudiante puede cambiar su estado; el admin puede
-    cambiar cualquier matricula. Si el periodo ya empezo, responde 409.
+    Solo el propio estudiante o el admin pueden modificarla. La ventana de
+    fecha_inicio es la misma de DELETE: antes de fecha_inicio se permite;
+    desde fecha_inicio responde 409; despues de fecha_fin responde 422.
+
+    Con ``id_materias`` la lista se toma como el conjunto completo de materias
+    del estudiante en el periodo de la matricula referenciada: agrega las que
+    faltan y elimina (junto con sus notas) las que no esten. Se validan plan
+    del programa, cupos, requisitos, creditos entre 6 y 19 y cruce de horario.
+    Con ``estado`` se actualiza el estado de la fila referenciada.
     """
     conn = obtener_conexion()
     try:
         with conn.cursor() as cur:
-            # Obtener la matricula
+            # Fila de referencia: de aqui salen cedula, periodo y lote
             cur.execute(
-                "SELECT cedula, periodo, id_materia, creditos, fecha_matricula, estado "
+                "SELECT cedula, periodo, id_materia, creditos, fecha_matricula, estado, id_lote "
                 "FROM matriculas WHERE id_matricula = %s",
                 (id_matricula,),
             )
@@ -750,7 +758,15 @@ def actualizar_matricula(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"No existe la matricula '{id_matricula}'",
                 )
-            cedula_mat, periodo_mat, id_materia_mat, creditos_mat, fecha_mat, estado_mat = fila
+            (
+                cedula_mat,
+                periodo_mat,
+                id_materia_mat,
+                creditos_mat,
+                fecha_mat,
+                estado_mat,
+                id_lote_mat,
+            ) = fila
 
             # Regla de rol: solo el propio estudiante o admin
             if sesion["rol"] == ROL_ESTUDIANTE and cedula_mat != sesion["id_persona"]:
@@ -763,18 +779,247 @@ def actualizar_matricula(
             hoy = date.today()
             _verificar_ventana_periodo(cur, periodo_mat, hoy)
 
-            # Aplicar cambios permitidos (solo estado por ahora)
-            nuevo_estado = cambios.estado if cambios.estado is not None else estado_mat
+            if cambios.id_materias is None:
+                # Comportamiento anterior: solo cambia el estado de la fila
+                nuevo_estado = cambios.estado if cambios.estado is not None else estado_mat
+                cur.execute(
+                    "UPDATE matriculas SET estado = %s WHERE id_matricula = %s",
+                    (nuevo_estado, id_matricula),
+                )
+            else:
+                id_materias = [m.strip() for m in cambios.id_materias]
+                if not id_materias:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="La lista de materias no puede estar vacia",
+                    )
+                if any(not m for m in id_materias):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="Ninguna materia puede estar vacia",
+                    )
+                if len(set(id_materias)) != len(id_materias):
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="La lista de materias tiene materias repetidas",
+                    )
+
+                # Bloquear al estudiante y sus matriculas del periodo para que
+                # dos ediciones concurrentes no se pisen.
+                cur.execute(
+                    "SELECT id_estudiante FROM estudiantes WHERE id_estudiante = %s FOR UPDATE",
+                    (cedula_mat,),
+                )
+                cur.execute(
+                    "SELECT id_matricula, id_materia, creditos, estado FROM matriculas "
+                    "WHERE cedula = %s AND periodo = %s ORDER BY id_matricula FOR UPDATE",
+                    (cedula_mat, periodo_mat),
+                )
+                actuales = cur.fetchall()
+                actuales_por_materia = {fila_actual[1]: fila_actual for fila_actual in actuales}
+
+                # Materias deseadas: existen, estan en el plan y tienen cupo
+                cur.execute(
+                    "SELECT id_materia, nombre_curso, cupos, creditos, dia, hora_inicio, hora_fin "
+                    "FROM materias WHERE id_materia = ANY(%s) ORDER BY id_materia FOR UPDATE",
+                    (id_materias,),
+                )
+                filas_materias = cur.fetchall()
+                if len(filas_materias) != len(id_materias):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Una o mas materias de la lista no existen",
+                    )
+                materias_por_id = {fila_materia[0]: fila_materia for fila_materia in filas_materias}
+
+                cur.execute(
+                    "SELECT e.id_programa, p.nombre_programa FROM estudiantes e "
+                    "JOIN programas p ON p.id_programa = e.id_programa "
+                    "WHERE e.id_estudiante = %s",
+                    (cedula_mat,),
+                )
+                fila_estudiante = cur.fetchone()
+                if fila_estudiante is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"No existe el estudiante con cedula '{cedula_mat}'",
+                    )
+                id_programa, nombre_programa = fila_estudiante
+
+                cur.execute(
+                    "SELECT m.nombre_curso FROM materias m "
+                    "WHERE m.id_materia = ANY(%s) "
+                    "AND NOT EXISTS ("
+                    "SELECT 1 FROM plan_estudios pe "
+                    "WHERE pe.id_materia = m.id_materia AND pe.id_programa = %s) "
+                    "ORDER BY m.nombre_curso",
+                    (id_materias, id_programa),
+                )
+                fuera_del_plan = [fila_plan[0] for fila_plan in cur.fetchall()]
+                if fuera_del_plan:
+                    faltantes = ", ".join(f"'{nombre}'" for nombre in fuera_del_plan)
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=(
+                            "Materias fuera del plan de estudios: "
+                            f"{faltantes} no pertenece al plan de '{nombre_programa}'"
+                        ),
+                    )
+
+                total_creditos = int(sum(fila_materia[3] for fila_materia in filas_materias))
+                if total_creditos < 6 or total_creditos > 19:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=(
+                            f"El total de creditos de la matricula es {total_creditos}; "
+                            "debe estar entre 6 y 19"
+                        ),
+                    )
+
+                nuevas = [
+                    id_materia for id_materia in id_materias
+                    if id_materia not in actuales_por_materia
+                ]
+                if nuevas:
+                    cur.execute(
+                        "SELECT mat.id_materia, mat.nombre_curso, mat.cupos, "
+                        "COUNT(m.id_matricula) AS matriculados "
+                        "FROM materias mat "
+                        "LEFT JOIN matriculas m ON m.id_materia = mat.id_materia AND m.periodo = %s "
+                        "WHERE mat.id_materia = ANY(%s) "
+                        "GROUP BY mat.id_materia, mat.nombre_curso, mat.cupos",
+                        (periodo_mat, nuevas),
+                    )
+                    for id_materia_cupo, nombre_materia, cupos_materia, matriculados in cur.fetchall():
+                        if int(matriculados) >= int(cupos_materia):
+                            raise HTTPException(
+                                status_code=status.HTTP_409_CONFLICT,
+                                detail=(
+                                    f"La materia '{nombre_materia}' no tiene cupos disponibles "
+                                    f"en el periodo '{periodo_mat}' ({matriculados} de {cupos_materia})"
+                                ),
+                            )
+
+                cur.execute(
+                    "SELECT r.id_materia, r.id_requisito, ma.nombre_curso, mr.nombre_curso "
+                    "FROM requisitos r "
+                    "JOIN materias ma ON ma.id_materia = r.id_materia "
+                    "JOIN materias mr ON mr.id_materia = r.id_requisito "
+                    "WHERE r.id_materia = ANY(%s) "
+                    "ORDER BY ma.nombre_curso, mr.nombre_curso",
+                    (id_materias,),
+                )
+                requisitos_de_la_lista = cur.fetchall()
+                if requisitos_de_la_lista:
+                    aprobadas = _aprobadas_por_materia(cur, cedula_mat)
+                    faltantes = []
+                    for _, id_requisito, nombre_materia_req, nombre_requisito in requisitos_de_la_lista:
+                        definitiva_req = aprobadas.get(id_requisito)
+                        if definitiva_req is None or definitiva_req < 3.0:
+                            faltantes.append(
+                                f"'{nombre_materia_req}' requiere '{nombre_requisito}' aprobada "
+                                f"(definitiva >= 3.0)"
+                            )
+                    if faltantes:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Requisitos previos sin aprobar: " + "; ".join(faltantes),
+                        )
+
+                mensaje_cruce = _cruce_horario(filas_materias)
+                if mensaje_cruce:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=mensaje_cruce,
+                    )
+
+                deseadas = set(id_materias)
+                actuales_ids = set(actuales_por_materia)
+                a_eliminar = [
+                    fila_actual[1] for fila_actual in actuales
+                    if fila_actual[1] not in deseadas
+                ]
+                a_agregar = [
+                    id_materia for id_materia in id_materias
+                    if id_materia not in actuales_ids
+                ]
+
+                # Si la fila referenciada desaparece, se reutiliza su
+                # id_matricula para la primera materia nueva y no se pierde
+                # el identificador que el cliente ya conoce.
+                if id_materia_mat in a_eliminar and a_agregar:
+                    materia_ancla = a_agregar.pop(0)
+                    fila_nueva = materias_por_id[materia_ancla]
+                    cur.execute(
+                        "UPDATE matriculas SET id_materia = %s, creditos = %s "
+                        "WHERE id_matricula = %s",
+                        (materia_ancla, fila_nueva[3], id_matricula),
+                    )
+                    a_eliminar.remove(id_materia_mat)
+                    actuales_por_materia.pop(id_materia_mat, None)
+                    actuales_por_materia[materia_ancla] = (
+                        id_matricula,
+                        materia_ancla,
+                        fila_nueva[3],
+                        estado_mat,
+                    )
+                    id_materia_mat = materia_ancla
+                    creditos_mat = fila_nueva[3]
+
+                # Quitar las materias que ya no estan en la lista, con sus
+                # notas dependientes para no violar la llave foranea.
+                for materia_eliminar in a_eliminar:
+                    fila_eliminar = actuales_por_materia[materia_eliminar]
+                    cur.execute(
+                        "DELETE FROM notas WHERE id_matricula = %s",
+                        (fila_eliminar[0],),
+                    )
+                    cur.execute(
+                        "DELETE FROM matriculas WHERE id_matricula = %s",
+                        (fila_eliminar[0],),
+                    )
+
+                for materia_agregar in a_agregar:
+                    fila_nueva = materias_por_id[materia_agregar]
+                    nuevo_id = str(uuid.uuid4())[:8]
+                    cur.execute(
+                        "INSERT INTO matriculas "
+                        "(id_matricula, cedula, id_materia, creditos, periodo, estado, id_lote) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                        (
+                            nuevo_id,
+                            cedula_mat,
+                            materia_agregar,
+                            fila_nueva[3],
+                            periodo_mat,
+                            "Activa",
+                            id_lote_mat,
+                        ),
+                    )
+
+                if cambios.estado is not None:
+                    cur.execute(
+                        "UPDATE matriculas SET estado = %s "
+                        "WHERE cedula = %s AND periodo = %s",
+                        (cambios.estado, cedula_mat, periodo_mat),
+                    )
+
+            # Filas finales del periodo (la referencia puede haber cambiado)
             cur.execute(
-                "UPDATE matriculas SET estado = %s WHERE id_matricula = %s",
-                (nuevo_estado, id_matricula),
+                "SELECT id_matricula, cedula, id_materia, creditos, periodo, fecha_matricula, estado "
+                "FROM matriculas WHERE cedula = %s AND periodo = %s "
+                "ORDER BY id_materia, id_matricula",
+                (cedula_mat, periodo_mat),
             )
+            finales = cur.fetchall()
             cur.execute(
                 "SELECT id_matricula, cedula, id_materia, creditos, periodo, fecha_matricula, estado "
                 "FROM matriculas WHERE id_matricula = %s",
                 (id_matricula,),
             )
             actualizada = cur.fetchone()
+            if actualizada is None:
+                actualizada = finales[0]
         conn.commit()
         return {
             "id_matricula": actualizada[0],
@@ -784,6 +1029,16 @@ def actualizar_matricula(
             "periodo": actualizada[4],
             "fecha_matricula": actualizada[5],
             "estado": actualizada[6],
+            "total_creditos": sum(int(fila_final[3]) for fila_final in finales),
+            "materias": [
+                {
+                    "id_matricula": fila_final[0],
+                    "id_materia": fila_final[2],
+                    "creditos": fila_final[3],
+                    "estado": fila_final[6],
+                }
+                for fila_final in finales
+            ],
         }
     finally:
         conn.close()
