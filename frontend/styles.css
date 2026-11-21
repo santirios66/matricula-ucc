@@ -635,7 +635,9 @@ body.tema-oscuro .estado-sin-nota .materia-card-estado{color:#9db4c0}
 .help h3{font-weight:700}
 
 /* ====== Encabezado: textos pequenos legibles ====== */
-header>span:first-child{font-weight:600}
-#breadcrumb{font-weight:600}
+header>span:first-child{font-weight:700}
+#breadcrumb{font-weight:700}
 .eyebrow{font-weight:700}
-#subtitle{font-weight:500;font-size:15px}
+#subtitle{font-weight:600;font-size:15px}
+#session-greeting{font-weight:600}
+#connection{font-weight:600}
