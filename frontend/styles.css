@@ -539,3 +539,34 @@ body.tema-oscuro .matricular-pie{border-top-color:#23414f}
 body.tema-oscuro .carrito-item.cruce,body.tema-oscuro .carrito-item:has(input:checked).cruce{border-color:#ff9299;box-shadow:0 0 0 2px rgba(255,146,153,.2)}
 body.tema-oscuro .carrito-item.bloqueada{background:#102a38;border-color:#28475a}
 body.tema-oscuro .carrito-item.bloqueada:hover{border-color:#28475a}
+
+/* ====== Estudiante: registro académico por periodo (solo lectura) ====== */
+.registro-top{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;background:white;border:1px solid var(--line);border-radius:14px;padding:22px 26px;box-shadow:0 1px 2px rgba(16,44,64,.06),0 6px 18px rgba(16,44,64,.05)}
+.registro-top .eyebrow{margin:0 0 4px}
+.registro-top h2{font-size:30px;letter-spacing:-.8px;color:#183448;margin:0 0 4px}
+.registro-top p{margin:0;color:#5c7080;font-size:13px}
+.registro-select{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;color:#5c7080;flex:0 0 auto}
+.registro-select select{min-width:160px;margin:0;padding:10px 12px;border:1px solid #cfdce4;border-radius:8px;background:white;color:#183448;font-size:13px}
+.stats-registro{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stats-registro .stat strong{font-size:30px}
+.stats-registro .stat.ok strong{color:#1f7a44}
+.stats-registro .stat.malo strong{color:#b02a37}
+.tabla-registro td:nth-child(3),.tabla-registro td:nth-child(4),.tabla-registro td:nth-child(5){font-variant-numeric:tabular-nums}
+.tabla-registro td:nth-child(4){font-weight:700;color:#183448}
+.tabla-registro .chip{display:inline-block}
+.chip.estado-cursando{background:#eef5f9;color:#22577a}
+.chip.estado-aprobada{background:#e4f5ea;color:#1f7a44}
+.chip.estado-reprobada{background:#fbe9e9;color:#b02a37}
+.chip.estado-sin-nota{background:#fdf4e0;color:#9a6b0a}
+body.tema-oscuro .registro-top{background:#133145;border-color:#28475a;box-shadow:0 1px 2px rgba(0,0,0,.35),0 10px 24px rgba(0,0,0,.28)}
+body.tema-oscuro .registro-top h2{color:#e6f1f7}
+body.tema-oscuro .registro-top p,body.tema-oscuro .registro-select{color:#9db4c0}
+body.tema-oscuro .registro-select select{background:#0f2a3b;border-color:#2a4a5e;color:#d9e6ee}
+body.tema-oscuro .stats-registro .stat.ok strong{color:#5fce8f}
+body.tema-oscuro .stats-registro .stat.malo strong{color:#ff9299}
+body.tema-oscuro .tabla-registro td:nth-child(4){color:#e6f1f7}
+body.tema-oscuro .chip.estado-cursando{background:#12414a;color:#7fd8cc}
+body.tema-oscuro .chip.estado-aprobada{background:#12352a;color:#8fd8b4}
+body.tema-oscuro .chip.estado-reprobada{background:#3b1219;color:#ff9299}
+body.tema-oscuro .chip.estado-sin-nota{background:#3b2f12;color:#ecc76d}
+@media(max-width:760px){.stats-registro{grid-template-columns:1fr}.registro-top{padding:18px;align-items:stretch}.registro-select{width:100%;justify-content:space-between}.registro-select select{flex:1;min-width:0}}

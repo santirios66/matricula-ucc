@@ -13,7 +13,7 @@ const MENUS = {
     ['periodos','Periodos','⏱'], ['cuentas','Cuentas','👤'],
   ],
   Estudiante: [
-    ['matricular','Matricular','✓'], ['misnotas','Mis notas','✎'], ['mistareas','Mis tareas','❑'], ['docs','Mis documentos','⇩'],
+    ['matricular','Matricular','✓'], ['registro','Registro académico','◫'], ['misnotas','Mis notas','✎'], ['mistareas','Mis tareas','❑'], ['docs','Mis documentos','⇩'],
   ],
   Profesor: [
     ['ingresarnotas','Ingresar notas','✎'], ['tareas','Tareas','❑'], ['reportes','Reportes','⇩'],
@@ -317,13 +317,13 @@ function navItems(){return MENUS[SESION?.rol]||[['resumen','Resumen','◈']];}
 function render(){
  if(!SESION) return;
  cierraLogoMenu();
- const titulo={resumen:'Resumen académico',matricular:'Matricular',misnotas:'Mis notas',mistareas:'Mis tareas',docs:'Mis documentos',ingresarnotas:'Ingresar notas',tareas:'Tareas',reportes:'Reportes',cuentas:'Cuentas'};
+ const titulo={resumen:'Resumen académico',matricular:'Matricular',registro:'Registro académico',misnotas:'Mis notas',mistareas:'Mis tareas',docs:'Mis documentos',ingresarnotas:'Ingresar notas',tareas:'Tareas',reportes:'Reportes',cuentas:'Cuentas'};
  $('#breadcrumb').textContent=titulo[current]||modules[current]?.title||'Resumen';
  $('#title').textContent=titulo[current]||modules[current]?.title||'Resumen académico';
-  $('#subtitle').textContent={resumen:'Todo según tu rol: '+SESION.rol,matricular:'Arma tu carrito y confirma: total entre 6 y 19 créditos.',misnotas:'Tus calificaciones registradas.',mistareas:'Las tareas de tus materias: entrega a tiempo.',docs:'Descarga tus reportes en PDF.',ingresarnotas:'Califica a los estudiantes de tus materias.',tareas:'Crea tareas en tus materias y revisa quién entregó.',reportes:'Reporte de notas de tus estudiantes.',cuentas:'Crea cuentas y restablece claves.',periodos:'Ventanas de matrícula.'}[current]||modules[current]?.description||'';
+  $('#subtitle').textContent={resumen:'Todo según tu rol: '+SESION.rol,matricular:'Arma tu carrito y confirma: total entre 6 y 19 créditos.',registro:'Tus materias, calificaciones y promedios por periodo.',misnotas:'Tus calificaciones registradas.',mistareas:'Las tareas de tus materias: entrega a tiempo.',docs:'Descarga tus reportes en PDF.',ingresarnotas:'Califica a los estudiantes de tus materias.',tareas:'Crea tareas en tus materias y revisa quién entregó.',reportes:'Reporte de notas de tus estudiantes.',cuentas:'Crea cuentas y restablece claves.',periodos:'Ventanas de matrícula.'}[current]||modules[current]?.description||'';
  $('#nav').innerHTML=navItems().map(([k,t,i])=>`<button data-page="${k}" class="${k===current?'active':''}" ${k===current?'aria-current="page"':''}><span aria-hidden="true">${i}</span>${t}</button>`).join('');
  $('#nav').querySelectorAll('button').forEach(b=>b.onclick=()=>go(b.dataset.page));
- const vistas={resumen:vistaResumen,matricular:vistaMatricular,misnotas:vistaMisNotas,mistareas:vistaMisTareas,docs:vistaDocs,ingresarnotas:vistaIngresarNotas,tareas:vistaTareas,reportes:vistaReportes,cuentas:vistaCuentas};
+ const vistas={resumen:vistaResumen,matricular:vistaMatricular,registro:vistaRegistroAcademico,misnotas:vistaMisNotas,mistareas:vistaMisTareas,docs:vistaDocs,ingresarnotas:vistaIngresarNotas,tareas:vistaTareas,reportes:vistaReportes,cuentas:vistaCuentas};
  if(vistas[current]){vistas[current]();return;}
  vistaCatalogo();
 }
@@ -958,6 +958,86 @@ async function vistaMisNotas(){
   $('#view').innerHTML=`${franja([{etiqueta:'Materias con nota',valor:notas.length},{etiqueta:'Actividades calificadas',valor:totalActividades},{etiqueta:'Promedio de definitivas',valor:promedio}])}<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>${seccionActividades}`;
   animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus notas',mensajeRol(error));}
+}
+
+// ====== Estudiante: Registro académico por periodo (solo lectura) ======
+let periodoRegistro=null; // estado solo en memoria
+const clavePeriodo=p=>{const m=String(p??'').match(/(\d{4})\D*(\d+)/);return m?Number(m[1])*100+Number(m[2]):0;};
+function notaRegistro(valor){
+ const n=Number(valor);
+ return valor==null||valor===''||Number.isNaN(n)?null:n;
+}
+function formatoNotaRegistro(valor,decimales){
+ const n=notaRegistro(valor);
+ return n==null?'—':n.toFixed(decimales);
+}
+function estadoRegistroAcademico(materia,periodoAbierto){
+ if(periodoAbierto)return 'Cursando';
+ const nota=notaRegistro(materia.nota_final??materia.calificacion);
+ if(nota==null)return 'Sin nota';
+ return nota>=3?'Aprobada':'Reprobada';
+}
+function chipEstadoRegistro(estado){
+ const clase=estado==='Aprobada'?'estado-aprobada':estado==='Reprobada'?'estado-reprobada':estado==='Sin nota'?'estado-sin-nota':'estado-cursando';
+ return `<span class="chip ${clase}">${esc(estado)}</span>`;
+}
+function filaRegistroAcademico(materia,periodoAbierto){
+ const estado=estadoRegistroAcademico(materia,periodoAbierto);
+ return `<tr><td><span class="id">${esc(materia.id_materia)}</span></td><td>${esc(materia.nombre_curso)}</td><td>${esc(materia.creditos)}</td><td>${formatoNotaRegistro(materia.calificacion,1)}</td><td>${formatoNotaRegistro(materia.nota_final,3)}</td><td>${chipEstadoRegistro(estado)}</td></tr>`;
+}
+function tarjetasRegistroAcademico(datos){
+ const acumulado=notaRegistro(datos.promedio_acumulado);
+ const situacion=acumulado==null?'—':(acumulado>=3?'Normal':'En riesgo');
+ const clase=acumulado==null?'':(acumulado>=3?'ok':'malo');
+ return `<section class="stats stats-registro" aria-label="Resumen del periodo"><div class="stat"><span>Promedio Semestre</span><strong>${formatoNotaRegistro(datos.promedio_semestre,2)}</strong><span>Ponderado por créditos</span></div><div class="stat"><span>Promedio Acumulado</span><strong>${formatoNotaRegistro(datos.promedio_acumulado,2)}</strong><span>Histórico del estudiante</span></div><div class="stat${clase?' '+clase:''}"><span>Situación Académica</span><strong>${esc(situacion)}</strong><span>${acumulado==null?'Sin promedio acumulado':'Umbral: 3.0'}</span></div></section>`;
+}
+async function vistaRegistroAcademico(){
+ $('#refresh').hidden=false;
+ if(SESION.rol!=='Estudiante'){$('#view').innerHTML=vacio('◫','No tienes permiso para esta acción','Inicia sesión con la cuenta de estudiante adecuada.');return;}
+ $('#view').innerHTML=vacio('⏳','Cargando registro académico','Un momento, consultamos tus periodos, materias y promedios.');
+ try{
+  const [matriculas,periodos]=await Promise.all([apiAuth('/matriculas/'),api('/periodos/')]);
+  if(current!=='registro')return;
+  const conMatricula=new Set((matriculas||[]).map(m=>m.periodo).filter(Boolean));
+  const porCodigo=new Map((periodos||[]).map(p=>[p.periodo,p]));
+  // Se listan todos los periodos con matrículas; los que no están configurados
+  // se muestran con un aviso en lugar de consultar un historial que fallaría.
+  const disponibles=[...conMatricula].map(periodo=>{
+   const meta=porCodigo.get(periodo);
+   return {periodo,fecha_inicio:meta?.fecha_inicio||'',configurado:!!meta};
+  }).sort((a,b)=>{
+   const fa=a.fecha_inicio?String(a.fecha_inicio):'',fb=b.fecha_inicio?String(b.fecha_inicio):'';
+   if(fa&&fb)return fb.localeCompare(fa);
+   if(fa)return -1;
+   if(fb)return 1;
+   return clavePeriodo(b.periodo)-clavePeriodo(a.periodo);
+  });
+  if(!disponibles.length){
+   $('#view').innerHTML=`<section class="panel"><div class="panel-top"><div><h2>Registro académico</h2><p>Consulta por periodo tus materias, calificaciones y promedios.</p></div></div>${vacio('▤','Aún no tienes materias registradas en este periodo','Cuando registres tu matrícula, aquí verás el detalle por periodo.')}</section>`;
+   animaLlegada($('#view'));return;
+  }
+  if(!periodoRegistro||!disponibles.some(p=>p.periodo===periodoRegistro))periodoRegistro=disponibles[0].periodo;
+  const seleccionado=periodoRegistro;
+  const opcion=disponibles.find(p=>p.periodo===seleccionado);
+  const opciones=disponibles.map(p=>`<option value="${esc(p.periodo)}"${p.periodo===seleccionado?' selected':''}>${esc(p.periodo)}</option>`).join('');
+  if(!opcion?.configurado){
+   $('#view').innerHTML=`<section class="registro-top"><div><p class="eyebrow">PERIODO ACADÉMICO</p><h2>${esc(seleccionado)}</h2><p>Periodo no configurado en el sistema.</p></div><label class="registro-select" for="registro-periodo"><span>Periodo</span><select id="registro-periodo">${opciones}</select></label></section>${tarjetasRegistroAcademico({promedio_semestre:null,promedio_acumulado:null})}<section class="panel"><div class="panel-top"><div><h2>Historial no disponible</h2><p>No se puede consultar este periodo.</p></div></div>${vacio('⚠','Periodo no configurado',`El periodo ${seleccionado} tiene matrículas, pero no está registrado en la configuración de periodos. No se puede consultar el historial.`)}</section>`;
+   $('#registro-periodo').onchange=e=>{periodoRegistro=e.target.value;vistaRegistroAcademico();};
+   animaLlegada($('#view'));return;
+  }
+  const datos=await apiAuth(`/estudiantes/${encodeURIComponent(SESION.id_persona)}/matriculas?periodo=${encodeURIComponent(seleccionado)}`);
+  if(current!=='registro'||periodoRegistro!==seleccionado)return;
+  const materias=datos.materias||[];
+  const filas=materias.map(m=>filaRegistroAcademico(m,datos.periodo_abierto)).join('');
+  const detallePeriodo=datos.periodo_abierto?'Periodo en curso: las materias figuran como Cursando.':'Periodo cerrado: el estado depende de la nota final.';
+  $('#view').innerHTML=`<section class="registro-top"><div><p class="eyebrow">PERIODO ACADÉMICO</p><h2>${esc(datos.periodo)}</h2><p>${esc(detallePeriodo)}</p></div><label class="registro-select" for="registro-periodo"><span>Periodo</span><select id="registro-periodo">${opciones}</select></label></section>${tarjetasRegistroAcademico(datos)}<section class="panel"><div class="panel-top"><div><h2>Materias del periodo</h2><p>${materias.length} ${materias.length===1?'materia registrada':'materias registradas'} · vista de solo lectura</p></div></div>${materias.length?`<div class="table-wrap"><table class="tabla-registro"><thead><tr><th>ID Curso</th><th>Descripción</th><th>Créditos</th><th>Calif</th><th>Notas</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div>`:vacio('▤','Aún no tienes materias registradas en este periodo','Cuando registres tu matrícula, aquí verás el detalle de este periodo.')}</section>`;
+  $('#registro-periodo').onchange=e=>{periodoRegistro=e.target.value;vistaRegistroAcademico();};
+  animaLlegada($('#view'));
+ }catch(error){
+  if(current!=='registro')return;
+  $('#view').innerHTML=vacio('⚠','No se pudo cargar el registro académico',mensajeRol(error));
+  animaLlegada($('#view'));
+ }
 }
 
 // ====== Descarga de PDF con credenciales ======
