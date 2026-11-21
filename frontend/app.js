@@ -1020,22 +1020,46 @@ async function pintaMatriculaGuardada(materias,periodos,periodoMatricula){
 }
 
 // ====== Estudiante: Mis notas ======
+let filtroNotaMateria='',filtroNotaPeriodo=''; // filtros solo en memoria
 async function vistaMisNotas(){
  $('#refresh').hidden=false;
  $('#view').innerHTML=vacio('⏳','Cargando notas','Un momento, consultamos tus calificaciones.');
  try{
-  const notas=await apiAuth('/notas/');
+  const [notas,matriculas,materias]=await Promise.all([apiAuth('/notas/'),apiAuth('/matriculas/'),api('/materias/')]);
+  if(current!=='misnotas')return;
   if(!notas.length){$('#view').innerHTML=vacio('✎','Aún no tienes notas registradas','Cuando tus profesores registren calificaciones, las verás aquí.');animaLlegada($('#view'));return;}
-  const conDefinitiva=notas.filter(n=>n.definitiva!=null);
-  const promedio=conDefinitiva.length?(conDefinitiva.reduce((s,n)=>s+Number(n.definitiva),0)/conDefinitiva.length).toFixed(2):'—';
-  const filas=notas.map(n=>`<tr><td>${n.id_nota==null?'—':`<span class="id">${esc(n.id_nota)}</span>`}</td><td>${esc(n.id_materia)}${n.calculada?' <span class="chip chip-calculada">Calculada</span>':''}</td><td>${n.nota1??'—'}</td><td>${n.nota2??'—'}</td><td>${n.nota3??'—'}</td><td><b>${n.definitiva??'—'}</b></td><td>${esc(n.estado||'Sin notas')}</td></tr>`).join('');
-  // Actividades por materia: la API repite la lista en cada nota de la misma
-  // materia (una por matrícula), así que se muestra una sola vez por materia.
-  const porMateria={};
-  notas.forEach(n=>{if(Array.isArray(n.actividades)&&n.actividades.length&&!porMateria[n.id_materia])porMateria[n.id_materia]=n.actividades;});
-  const totalActividades=Object.values(porMateria).reduce((s,lista)=>s+lista.length,0);
-  const seccionActividades=totalActividades?`<section class="panel"><div class="panel-top"><div><h2>Calificaciones por actividad</h2><p>Talleres, quizzes, exámenes y trabajos que ya calificaron tus profesores</p></div></div><div class="lista-actividades">${Object.entries(porMateria).map(([materia,actividades])=>actividades.map(a=>`<article class="actividad-item"><div><strong>${esc(a.titulo)}</strong><span class="tarea-meta"><span class="chip">${esc(materia)}</span>${chipTipo(a.tipo)}<span class="chip">Calificada: ${esc(formatFecha(a.subida_en))}</span></span></div><span class="chip chip-calif">Nota: ${Number(a.calificacion).toFixed(1)}</span></article>`).join('')).join('')}</div></section>`:'';
-  $('#view').innerHTML=`${franja([{etiqueta:'Materias con nota',valor:notas.length},{etiqueta:'Actividades calificadas',valor:totalActividades},{etiqueta:'Promedio de definitivas',valor:promedio}])}<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div></section>${seccionActividades}`;
+  const nombreMateria=id=>{const m=(materias||[]).find(x=>x.id_materia===id);return m?m.nombre_curso:id;};
+  // El periodo de cada nota sale de su matrícula (GET /matriculas/ del propio estudiante)
+  const periodoDe=idMatricula=>{const m=(matriculas||[]).find(x=>x.id_matricula===idMatricula);return m?m.periodo:null;};
+  const conPeriodo=notas.map(n=>({...n,periodo:periodoDe(n.id_matricula)}));
+  const materiasNotas=[...new Set(conPeriodo.map(n=>n.id_materia))].sort((a,b)=>String(a).localeCompare(String(b),'es'));
+  const periodosNotas=[...new Set(conPeriodo.map(n=>n.periodo).filter(Boolean))].sort((a,b)=>clavePeriodo(b)-clavePeriodo(a));
+  if(filtroNotaMateria&&!materiasNotas.includes(filtroNotaMateria))filtroNotaMateria='';
+  if(filtroNotaPeriodo&&!periodosNotas.includes(filtroNotaPeriodo))filtroNotaPeriodo='';
+  const opcionesMateria=`<option value="">Todas</option>${materiasNotas.map(m=>`<option value="${esc(m)}"${m===filtroNotaMateria?' selected':''}>${esc(m)} · ${esc(nombreMateria(m))}</option>`).join('')}`;
+  const opcionesPeriodo=`<option value="">Todos</option>${periodosNotas.map(p=>`<option value="${esc(p)}"${p===filtroNotaPeriodo?' selected':''}>${esc(p)}</option>`).join('')}`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Materias con nota',valor:conPeriodo.length,id:'ind-nota-materias'},{etiqueta:'Actividades calificadas',valor:0,id:'ind-nota-actividades'},{etiqueta:'Promedio de definitivas',valor:'—',id:'ind-nota-promedio'}])}<section class="panel"><div class="filtros-vista"><label class="filtro-facultad" for="filtro-nota-materia"><span>Materia</span><select id="filtro-nota-materia" aria-label="Filtrar notas por materia">${opcionesMateria}</select></label><label class="filtro-facultad" for="filtro-nota-periodo"><span>Periodo</span><select id="filtro-nota-periodo" aria-label="Filtrar notas por periodo">${opcionesPeriodo}</select></label></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Materia</th><th>N1</th><th>N2</th><th>N3</th><th>Definitiva</th><th>Estado</th></tr></thead><tbody id="tabla-notas"></tbody></table></div></section><section class="panel"><div class="panel-top"><div><h2>Calificaciones por actividad</h2><p>Talleres, quizzes, exámenes y trabajos que ya calificaron tus profesores</p></div></div><div id="actividades-notas"></div></section>`;
+  const aplicar=()=>{
+   const selM=$('#filtro-nota-materia'),selP=$('#filtro-nota-periodo');
+   if(selM)filtroNotaMateria=selM.value;
+   if(selP)filtroNotaPeriodo=selP.value;
+   const filtradas=conPeriodo.filter(n=>(!filtroNotaMateria||n.id_materia===filtroNotaMateria)&&(!filtroNotaPeriodo||n.periodo===filtroNotaPeriodo));
+   const conDefinitiva=filtradas.filter(n=>n.definitiva!=null);
+   const promedio=conDefinitiva.length?(conDefinitiva.reduce((s,n)=>s+Number(n.definitiva),0)/conDefinitiva.length).toFixed(2):'—';
+   // Actividades por materia: la API repite la lista en cada nota de la misma
+   // materia (una por matrícula), así que se toma una sola vez por materia.
+   const porMateria={};
+   filtradas.forEach(n=>{if(!porMateria[n.id_materia])porMateria[n.id_materia]=Array.isArray(n.actividades)?n.actividades:[];});
+   const totalActividades=Object.values(porMateria).reduce((s,lista)=>s+lista.length,0);
+   $('#ind-nota-materias').textContent=String(filtradas.length);
+   $('#ind-nota-actividades').textContent=String(totalActividades);
+   $('#ind-nota-promedio').textContent=promedio;
+   $('#tabla-notas').innerHTML=filtradas.length?filtradas.map(n=>`<tr><td>${n.id_nota==null?'—':`<span class="id">${esc(n.id_nota)}</span>`}</td><td>${esc(n.id_materia)}${n.calculada?' <span class="chip chip-calculada">Calculada</span>':''}</td><td>${n.nota1??'—'}</td><td>${n.nota2??'—'}</td><td>${n.nota3??'—'}</td><td><b>${n.definitiva??'—'}</b></td><td>${esc(n.estado||'Sin notas')}</td></tr>`).join(''):`<tr><td colspan="7" class="sin-datos">Sin notas en esta selección. Cambia la materia o el periodo.</td></tr>`;
+   $('#actividades-notas').innerHTML=Object.keys(porMateria).length?Object.entries(porMateria).map(([materia,actividades])=>`<section class="grupo-vista"><h3>${esc(materia)} · ${esc(nombreMateria(materia))}<span class="count">${actividades.length} ${actividades.length===1?'actividad calificada':'actividades calificadas'}</span></h3>${actividades.length?`<div class="actividades-grupo-lista">${actividades.map(a=>`<article class="actividad-item"><div><strong>${esc(a.titulo)}</strong><span class="tarea-meta"><span class="chip">${esc(materia)}</span>${chipTipo(a.tipo)}<span class="chip">Calificada: ${esc(formatFecha(a.subida_en))}</span></span></div><span class="chip chip-calif">Nota: ${Number(a.calificacion).toFixed(1)}</span></article>`).join('')}</div>`:'<p class="sin-actividades">Sin actividades calificadas en esta selección</p>'}</section>`).join(''):vacio('⌕','Sin notas en esta selección','Cambia la materia o el periodo para ver tus actividades.');
+  };
+  $('#filtro-nota-materia').onchange=aplicar;
+  $('#filtro-nota-periodo').onchange=aplicar;
+  aplicar();
   animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus notas',mensajeRol(error));}
 }
@@ -1226,6 +1250,7 @@ function tarjetasTareasEst(tareas){
 }
 
 // ====== Profesor: Tareas (crear + revisar entregas) ======
+let filtroTareaProfe=''; // filtro solo en memoria
 async function vistaTareas(){
  $('#refresh').hidden=false;
  if(SESION.rol!=='Profesor'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de profesor adecuada.');return;}
@@ -1235,8 +1260,10 @@ async function vistaTareas(){
   const mias=(data.materias||[]).filter(m=>m.id_profesor===SESION.id_persona);
   if(!mias.length){$('#view').innerHTML=vacio('❑','No tienes materias asignadas','Cuando te asignen materias podrás crear tareas aquí.');return;}
   const tareas=await apiAuth('/tareas/');
+  if(filtroTareaProfe&&!mias.some(m=>m.id_materia===filtroTareaProfe))filtroTareaProfe='';
+  const opcionesFiltro=`<option value="">Todas</option>${mias.map(m=>`<option value="${esc(m.id_materia)}"${m.id_materia===filtroTareaProfe?' selected':''}>${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('')}`;
   const opciones=mias.map(m=>`<option value="${esc(m.id_materia)}">${esc(m.id_materia)} · ${esc(m.nombre_curso)}</option>`).join('');
-  $('#view').innerHTML=`${franja([{etiqueta:'Tareas creadas',valor:tareas.length},{etiqueta:'Materias asignadas',valor:mias.length}])}<section class="panel"><div class="panel-top"><div><h2>Nueva tarea</h2><p>El tipo y los campos con * son obligatorios. Archivo de apoyo opcional: PDF, MP4 o WebM, máximo 20 MB</p></div></div><form id="form-tarea"><div class="fields"><div><label for="t-materia">Materia *</label><select id="t-materia" required>${opciones}</select></div><div><label for="t-tipo">Tipo de actividad *</label><select id="t-tipo" required>${TIPOS_TAREA.map(([valor,texto])=>`<option value="${valor}">${texto}</option>`).join('')}</select></div><div><label for="t-momento">Momento *</label><select id="t-momento" required>${[1,2,3].map(n=>`<option value="${n}">Momento ${n}</option>`).join('')}</select></div><div><label for="t-limite">Fecha y hora límite *</label><input id="t-limite" type="datetime-local" required></div><div class="campo-ancho"><label for="t-titulo">Título *</label><input id="t-titulo" type="text" maxlength="120" required placeholder="Taller 1 - Programación en Java"></div><div class="campo-ancho" id="t-archivo-campo"><label for="t-archivo">Archivo de apoyo (opcional)</label><input id="t-archivo" type="file" accept=".pdf,.mp4,.webm"><p class="error-archivo" id="t-archivo-error" role="alert"></p></div><div class="campo-ancho" id="t-sin-archivo-aviso" hidden><p class="ayuda-tipo">Esta actividad se califica directamente</p></div><div class="campo-ancho"><label for="t-desc">Descripción *</label><textarea id="t-desc" rows="3" required placeholder="Instrucciones, entregables y formato esperado"></textarea></div></div><p id="t-error" role="alert"></p><div class="form-actions"><button type="submit" id="t-crear">Crear tarea</button></div></form></section><section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Pulsa "Ver entregas" para ver quién entregó y quién no</p></div></div><div id="lista-tareas" class="lista-tareas"></div></section>`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Tareas creadas',valor:tareas.length,id:'ind-tareas-profe'},{etiqueta:'Materias asignadas',valor:mias.length}])}<section class="panel"><div class="panel-top"><div><h2>Nueva tarea</h2><p>El tipo y los campos con * son obligatorios. Archivo de apoyo opcional: PDF, MP4 o WebM, máximo 20 MB</p></div></div><form id="form-tarea"><div class="fields"><div><label for="t-materia">Materia *</label><select id="t-materia" required>${opciones}</select></div><div><label for="t-tipo">Tipo de actividad *</label><select id="t-tipo" required>${TIPOS_TAREA.map(([valor,texto])=>`<option value="${valor}">${texto}</option>`).join('')}</select></div><div><label for="t-momento">Momento *</label><select id="t-momento" required>${[1,2,3].map(n=>`<option value="${n}">Momento ${n}</option>`).join('')}</select></div><div><label for="t-limite">Fecha y hora límite *</label><input id="t-limite" type="datetime-local" required></div><div class="campo-ancho"><label for="t-titulo">Título *</label><input id="t-titulo" type="text" maxlength="120" required placeholder="Taller 1 - Programación en Java"></div><div class="campo-ancho" id="t-archivo-campo"><label for="t-archivo">Archivo de apoyo (opcional)</label><input id="t-archivo" type="file" accept=".pdf,.mp4,.webm"><p class="error-archivo" id="t-archivo-error" role="alert"></p></div><div class="campo-ancho" id="t-sin-archivo-aviso" hidden><p class="ayuda-tipo">Esta actividad se califica directamente</p></div><div class="campo-ancho"><label for="t-desc">Descripción *</label><textarea id="t-desc" rows="3" required placeholder="Instrucciones, entregables y formato esperado"></textarea></div></div><p id="t-error" role="alert"></p><div class="form-actions"><button type="submit" id="t-crear">Crear tarea</button></div></form></section><section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Pulsa "Ver entregas" para ver quién entregó y quién no</p></div><label class="filtro-facultad" for="filtro-tarea-profe"><span>Materia</span><select id="filtro-tarea-profe" aria-label="Filtrar tareas por materia">${opcionesFiltro}</select></label></div><div id="lista-tareas" class="lista-tareas"></div></section>`;
   animaLlegada($('#view'));
   $('#t-archivo').onchange=e=>{const msg=validaArchivo(e.target.files[0]);$('#t-archivo-error').textContent=msg;if(msg)e.target.value='';};
   // En examen y quiz la actividad se califica directamente: se oculta el archivo de apoyo
@@ -1269,12 +1296,17 @@ async function vistaTareas(){
    }catch(error){$('#t-error').textContent=mensajeRol(error);btn.disabled=false;btn.textContent='Crear tarea';}
   };
   const pintarLista=()=>{
+   const sel=$('#filtro-tarea-profe');
+   if(sel)filtroTareaProfe=sel.value;
    const zona=$('#lista-tareas');
-   if(!tareas.length){zona.innerHTML=vacio('❑','Aún no has creado tareas','Crea la primera con el formulario "Nueva tarea" de arriba.');return;}
-   zona.innerHTML=tareas.map(t=>`<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta">${chipTipo(t.tipo)}${t.momento?`<span class="chip chip-momento">Momento ${t.momento}</span>`:''}<span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?'<span class="chip">⇩ Con archivo de apoyo</span>':''}</span></div><div class="tarea-lado"><span class="chip chip-entregas">${t.entregas_recibidas??0} de ${t.matriculados??0} entregaron</span><button class="secondary ver-entregas" data-id="${esc(t.id_tarea)}" data-tipo="${esc(t.tipo||'taller')}">Ver entregas ▾</button></div></div><div class="tarea-detail" id="detalle-${esc(t.id_tarea)}" hidden></div></article>`).join('');
+   const filtradas=tareas.filter(t=>!filtroTareaProfe||t.id_materia===filtroTareaProfe);
+   const ind=$('#ind-tareas-profe');if(ind)ind.textContent=String(filtradas.length);
+   if(!filtradas.length){zona.innerHTML=vacio('⌕',filtroTareaProfe?'No hay tareas de esta materia':'Aún no has creado tareas',filtroTareaProfe?'Cuando crees una tarea en esta materia aparecerá aquí.':'Crea la primera con el formulario "Nueva tarea" de arriba.');return;}
+   zona.innerHTML=filtradas.map(t=>`<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta">${chipTipo(t.tipo)}${t.momento?`<span class="chip chip-momento">Momento ${t.momento}</span>`:''}<span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?'<span class="chip">⇩ Con archivo de apoyo</span>':''}</span></div><div class="tarea-lado"><span class="chip chip-entregas">${t.entregas_recibidas??0} de ${t.matriculados??0} entregaron</span><button class="secondary ver-entregas" data-id="${esc(t.id_tarea)}" data-tipo="${esc(t.tipo||'taller')}">Ver entregas ▾</button></div></div><div class="tarea-detail" id="detalle-${esc(t.id_tarea)}" hidden></div></article>`).join('');
    zona.querySelectorAll('.ver-entregas').forEach(b=>b.onclick=()=>verEntregas(b.dataset.id,b,b.dataset.tipo||'taller'));
   };
   pintarLista();
+  $('#filtro-tarea-profe').onchange=pintarLista;
   animaLlegada($('#lista-tareas'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus tareas',mensajeRol(error));}
 }
@@ -1321,54 +1353,94 @@ async function verEntregas(idTarea, boton, tipo='taller'){
 }
 
 // ====== Estudiante: Mis tareas (estado + subir entrega) ======
+let filtroTareaMateria='',filtroTareaPeriodo=''; // filtros solo en memoria
 async function vistaMisTareas(){
  $('#refresh').hidden=false;
  if(SESION.rol!=='Estudiante'){$('#view').innerHTML=vacio('🔒','No tienes permiso para esta acción','Inicia sesión con la cuenta de estudiante adecuada.');return;}
  $('#view').innerHTML=vacio('⏳','Cargando tareas','Un momento, consultamos las tareas de tus materias.');
  try{
-  const tareas=await apiAuth('/tareas/');
-  const conteo={Entregado:0,Pendiente:0,'No entregó':0};
-  tareas.forEach(t=>{if(t.estado_entrega in conteo)conteo[t.estado_entrega]++;});
-  $('#view').innerHTML=`${franja([{etiqueta:'Tareas',valor:tareas.length},{etiqueta:'Entregadas',valor:conteo.Entregado},{etiqueta:'Pendientes',valor:conteo.Pendiente},{etiqueta:'No entregó',valor:conteo['No entregó']}])}<section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Sube tu archivo antes de la fecha límite: PDF, MP4 o WebM, máximo 20 MB. En exámenes y quizzes el archivo es opcional</p></div></div><div id="lista-mis-tareas" class="lista-tareas"></div></section>`;
-  const zona=$('#lista-mis-tareas');
-  if(!tareas.length){zona.innerHTML=vacio('❑','No hay tareas en tus materias','Cuando tus profesores publiquen tareas, aparecerán aquí con su fecha límite.');animaLlegada($('#view'));return;}
-  zona.innerHTML=tareas.map(t=>{
+  const [tareas,matriculas,periodos]=await Promise.all([apiAuth('/tareas/'),apiAuth('/matriculas/'),api('/periodos/')]);
+  if(current!=='mistareas')return;
+  if(!tareas.length){
+   $('#view').innerHTML=`${franja([{etiqueta:'Tareas',valor:0},{etiqueta:'Entregadas',valor:0},{etiqueta:'Pendientes',valor:0},{etiqueta:'No entregó',valor:0}])}<section class="panel">${vacio('❑','No hay tareas en tus materias','Cuando tus profesores publiquen tareas, aparecerán aquí con su fecha límite.')}</section>`;
+   animaLlegada($('#view'));return;
+  }
+  // Las tareas del endpoint son de las matrículas activas en periodos abiertos:
+  // el periodo de cada tarea sale de esa matrícula (GET /matriculas/ propio).
+  const hoy=new Date();
+  const abiertos=new Set((periodos||[]).filter(p=>{const a=p.fecha_inicio?new Date(p.fecha_inicio+'T00:00:00'):null,b=p.fecha_fin?new Date(p.fecha_fin+'T23:59:59'):null;return a&&b&&hoy>=a&&hoy<=b;}).map(p=>p.periodo));
+  const periodoMateria={};
+  (matriculas||[]).forEach(m=>{if(m.estado==='Activa'&&abiertos.has(m.periodo))periodoMateria[m.id_materia]=m.periodo;});
+  const conPeriodo=tareas.map(t=>({...t,periodo:periodoMateria[t.id_materia]||null}));
+  const materiasTarea=[...new Set(conPeriodo.map(t=>t.id_materia))].sort((a,b)=>String(a).localeCompare(String(b),'es'));
+  const periodosTarea=[...new Set(conPeriodo.map(t=>t.periodo).filter(Boolean))].sort((a,b)=>clavePeriodo(b)-clavePeriodo(a));
+  if(filtroTareaMateria&&!materiasTarea.includes(filtroTareaMateria))filtroTareaMateria='';
+  if(filtroTareaPeriodo&&!periodosTarea.includes(filtroTareaPeriodo))filtroTareaPeriodo='';
+  const nombreDe=id=>{const t=conPeriodo.find(x=>x.id_materia===id);return t?(t.materia||id):id;};
+  const opcionesMateria=`<option value="">Todas</option>${materiasTarea.map(m=>`<option value="${esc(m)}"${m===filtroTareaMateria?' selected':''}>${esc(m)} · ${esc(nombreDe(m))}</option>`).join('')}`;
+  const opcionesPeriodo=`<option value="">Todos</option>${periodosTarea.map(p=>`<option value="${esc(p)}"${p===filtroTareaPeriodo?' selected':''}>${esc(p)}</option>`).join('')}`;
+  $('#view').innerHTML=`${franja([{etiqueta:'Tareas',valor:tareas.length,id:'ind-tarea-total'},{etiqueta:'Entregadas',valor:0,id:'ind-tarea-entregadas'},{etiqueta:'Pendientes',valor:0,id:'ind-tarea-pendientes'},{etiqueta:'No entregó',valor:0,id:'ind-tarea-noentrego'}])}<section class="panel"><div class="panel-top"><div><h2>Tareas de tus materias</h2><p>Sube tu archivo antes de la fecha límite: PDF, MP4 o WebM, máximo 20 MB. En exámenes y quizzes el archivo es opcional</p></div></div><div class="filtros-vista"><label class="filtro-facultad" for="filtro-tarea-materia"><span>Materia</span><select id="filtro-tarea-materia" aria-label="Filtrar tareas por materia">${opcionesMateria}</select></label><label class="filtro-facultad" for="filtro-tarea-periodo"><span>Periodo</span><select id="filtro-tarea-periodo" aria-label="Filtrar tareas por periodo">${opcionesPeriodo}</select></label></div><div id="lista-mis-tareas" class="lista-tareas"></div></section>`;
+  const itemMisTareas=t=>{
    const vigente=plazoVigente(t.fecha_limite);
    const claseEstado=t.estado_entrega==='Entregado'?'estado-entregado':t.estado_entrega==='Pendiente'?'estado-pendiente':'estado-no-entrego';
    const sinArchivo=TIPOS_SIN_ARCHIVO.includes(t.tipo||'taller');
    return `<article class="tarea-item" data-id="${esc(t.id_tarea)}"><div class="tarea-cab"><div class="tarea-titulo"><strong>${esc(t.titulo)}</strong><span class="tarea-meta">${chipTipo(t.tipo)}${t.momento?`<span class="chip chip-momento">Momento ${t.momento}</span>`:''}<span class="chip">${esc(t.id_materia)}</span><span class="chip">${esc(t.materia||'')}</span><span class="chip">Límite: ${esc(formatFecha(t.fecha_limite))}</span>${t.tiene_apoyo?`<button type="button" class="chip descarga-apoyo" data-id="${esc(t.id_tarea)}">⇩ Descargar apoyo</button>`:''}</span></div><div class="tarea-lado"><span class="chip ${claseEstado}">${esc(t.estado_entrega)}${t.estado_entrega==='Entregado'&&t.fecha_entrega?` · ${esc(formatFecha(t.fecha_entrega))}`:''}</span>${chipNota(t.calificacion)}${vigente?`<button type="button" class="subir-entrega" data-id="${esc(t.id_tarea)}">Subir entrega ⇧</button>`:''}</div></div>${vigente?`<form class="form-entrega" id="form-entrega-${esc(t.id_tarea)}" data-tipo="${esc(t.tipo||'taller')}" hidden><div class="fields"><div><label for="archivo-${esc(t.id_tarea)}">Tu archivo (PDF, MP4 o WebM, máx. 20 MB)${sinArchivo?' (opcional)':' *'}</label><input id="archivo-${esc(t.id_tarea)}" type="file" accept=".pdf,.mp4,.webm" ${sinArchivo?'':'required'}>${sinArchivo?'<p class="ayuda-tipo">Esta actividad se califica directamente</p>':''}<p class="error-archivo" role="alert"></p></div><div><label for="comentario-${esc(t.id_tarea)}">Comentario para el profesor (opcional)</label><input id="comentario-${esc(t.id_tarea)}" type="text" maxlength="300" placeholder="Ej. Adjunto el taller con capturas"></div></div><div class="form-actions"><button type="submit">Enviar entrega</button></div></form>`:''}</article>`;
-  }).join('');
-  zona.querySelectorAll('.descarga-apoyo').forEach(b=>b.onclick=()=>descargarPDF(`/tareas/${b.dataset.id}/apoyo`,`Apoyo_${b.dataset.id}.pdf`));
-  zona.querySelectorAll('.subir-entrega').forEach(b=>b.onclick=()=>{
-   const form=$(`#form-entrega-${b.dataset.id}`);
-   form.hidden=!form.hidden;
-   b.textContent=form.hidden?'Subir entrega ⇧':'Cerrar entrega ⇕';
-   if(!form.hidden)form.querySelector('input[type=file]').focus();
-  });
-  zona.querySelectorAll('.form-entrega').forEach(form=>{
-   const id=form.id.replace('form-entrega-','');
-   const tipo=form.dataset.tipo||'taller', sinArchivo=TIPOS_SIN_ARCHIVO.includes(tipo);
-   const input=$(`#archivo-${id}`), comentario=$(`#comentario-${id}`), err=form.querySelector('.error-archivo');
-   input.onchange=e=>{if(!e.target.files[0]){err.textContent='';return;}const msg=validaArchivo(e.target.files[0]);err.textContent=msg;if(msg)e.target.value='';};
-   form.onsubmit=async e=>{
-    e.preventDefault();
-    err.textContent='';
-    const archivo=input.files[0];
-    if(archivo){const msg=validaArchivo(archivo);if(msg){err.textContent=msg;return;}}
-    else if(!sinArchivo){err.textContent=`El archivo es obligatorio para actividades de tipo ${nombreTipo(tipo).toLowerCase()}.`;return;}
-    const btn=form.querySelector('button[type=submit]');
-    btn.disabled=true;btn.textContent='Subiendo…';
-    try{
-     const fd=new FormData();
-     if(archivo)fd.append('archivo',archivo);
-     const texto=(comentario.value||'').trim();
-     if(texto)fd.append('comentario',texto);
-     await apiAuth(`/tareas/${id}/entregas`,{method:'POST',body:fd});
-     notice('Entrega registrada correctamente. Tu estado ahora es "Entregado".',true);
-     await vistaMisTareas();
-    }catch(error){notice(mensajeRol(error));btn.disabled=false;btn.textContent='Enviar entrega';}
-   };
-  });
+  };
+  const wireMisTareas=zona=>{
+   zona.querySelectorAll('.descarga-apoyo').forEach(b=>b.onclick=()=>descargarPDF(`/tareas/${b.dataset.id}/apoyo`,`Apoyo_${b.dataset.id}.pdf`));
+   zona.querySelectorAll('.subir-entrega').forEach(b=>b.onclick=()=>{
+    const form=$(`#form-entrega-${b.dataset.id}`);
+    form.hidden=!form.hidden;
+    b.textContent=form.hidden?'Subir entrega ⇧':'Cerrar entrega ⇕';
+    if(!form.hidden)form.querySelector('input[type=file]').focus();
+   });
+   zona.querySelectorAll('.form-entrega').forEach(form=>{
+    const id=form.id.replace('form-entrega-','');
+    const tipo=form.dataset.tipo||'taller', sinArchivo=TIPOS_SIN_ARCHIVO.includes(tipo);
+    const input=$(`#archivo-${id}`), comentario=$(`#comentario-${id}`), err=form.querySelector('.error-archivo');
+    input.onchange=e=>{if(!e.target.files[0]){err.textContent='';return;}const msg=validaArchivo(e.target.files[0]);err.textContent=msg;if(msg)e.target.value='';};
+    form.onsubmit=async e=>{
+     e.preventDefault();
+     err.textContent='';
+     const archivo=input.files[0];
+     if(archivo){const msg=validaArchivo(archivo);if(msg){err.textContent=msg;return;}}
+     else if(!sinArchivo){err.textContent=`El archivo es obligatorio para actividades de tipo ${nombreTipo(tipo).toLowerCase()}.`;return;}
+     const btn=form.querySelector('button[type=submit]');
+     btn.disabled=true;btn.textContent='Subiendo…';
+     try{
+      const fd=new FormData();
+      if(archivo)fd.append('archivo',archivo);
+      const texto=(comentario.value||'').trim();
+      if(texto)fd.append('comentario',texto);
+      await apiAuth(`/tareas/${id}/entregas`,{method:'POST',body:fd});
+      notice('Entrega registrada correctamente. Tu estado ahora es "Entregado".',true);
+      await vistaMisTareas();
+     }catch(error){notice(mensajeRol(error));btn.disabled=false;btn.textContent='Enviar entrega';}
+    };
+   });
+  };
+  const aplicar=()=>{
+   const selM=$('#filtro-tarea-materia'),selP=$('#filtro-tarea-periodo');
+   if(selM)filtroTareaMateria=selM.value;
+   if(selP)filtroTareaPeriodo=selP.value;
+   const filtradas=conPeriodo.filter(t=>(!filtroTareaMateria||t.id_materia===filtroTareaMateria)&&(!filtroTareaPeriodo||t.periodo===filtroTareaPeriodo));
+   const conteo={Entregado:0,Pendiente:0,'No entregó':0};
+   filtradas.forEach(t=>{if(t.estado_entrega in conteo)conteo[t.estado_entrega]++;});
+   $('#ind-tarea-total').textContent=String(filtradas.length);
+   $('#ind-tarea-entregadas').textContent=String(conteo.Entregado);
+   $('#ind-tarea-pendientes').textContent=String(conteo.Pendiente);
+   $('#ind-tarea-noentrego').textContent=String(conteo['No entregó']);
+   const zona=$('#lista-mis-tareas');
+   if(!filtradas.length){zona.innerHTML=vacio('⌕','No hay tareas en esta selección','Cambia la materia o el periodo.');return;}
+   // Con "Todas" la lista se agrupa por materia; con una materia, queda su único grupo.
+   const grupos={};
+   filtradas.forEach(t=>{(grupos[t.id_materia]??=[]).push(t);});
+   zona.innerHTML=Object.keys(grupos).sort((a,b)=>String(a).localeCompare(String(b),'es')).map(m=>`<section class="grupo-vista"><h3>${esc(m)} · ${esc(nombreDe(m))}<span class="count">${grupos[m].length} ${grupos[m].length===1?'tarea':'tareas'}</span></h3>${grupos[m].map(itemMisTareas).join('')}</section>`).join('');
+   wireMisTareas(zona);
+  };
+  $('#filtro-tarea-materia').onchange=aplicar;
+  $('#filtro-tarea-periodo').onchange=aplicar;
+  aplicar();
   animaLlegada($('#view'));
  }catch(error){$('#view').innerHTML=vacio('⚠','No se pudieron cargar tus tareas',mensajeRol(error));}
 }

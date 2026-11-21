@@ -641,3 +641,22 @@ header>span:first-child{font-weight:700}
 #subtitle{font-weight:600;font-size:15px}
 #session-greeting{font-weight:600}
 #connection{font-weight:600}
+
+/* ====== Filtros por materia y periodo ====== */
+.filtros-vista{display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:18px 26px 0}
+.filtros-vista .filtro-facultad{display:flex;align-items:center;gap:8px;font-size:12px;color:#5c7080;font-weight:600}
+.filtros-vista select{min-width:190px;max-width:260px;padding:9px 12px;border:1px solid #cfdce4;border-radius:8px;background:#fff;color:#183448;font-size:13px}
+.grupo-vista{display:grid;gap:10px;margin-bottom:16px}
+.grupo-vista h3{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:#4a6274}
+.grupo-vista h3 .count{font-size:10.5px;font-weight:600;color:#5c7080;background:#eef3f6;border:1px solid #e6edf1;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.actividades-grupo-lista{display:grid;gap:10px}
+#actividades-notas{padding:0 26px 26px}
+.sin-actividades{margin:0;font-size:13px;color:#718391}
+.sin-datos{text-align:center;color:#718391;padding:22px}
+.panel-top .filtro-facultad{display:flex;align-items:center;gap:8px;font-size:12px;color:#5c7080;font-weight:600}
+.panel-top .filtro-facultad select{min-width:190px;max-width:260px;padding:9px 12px;border:1px solid #cfdce4;border-radius:8px;background:#fff;color:#183448;font-size:13px}
+body.tema-oscuro .filtros-vista .filtro-facultad,body.tema-oscuro .panel-top .filtro-facultad{color:#9db4c0}
+body.tema-oscuro .filtros-vista select,body.tema-oscuro .panel-top .filtro-facultad select{background:#0f2a3b;border-color:#2a4a5e;color:#d9e6ee}
+body.tema-oscuro .grupo-vista h3{color:#9db4c0}
+body.tema-oscuro .grupo-vista h3 .count{background:#16394c;border-color:#2a4a5e;color:#9db4c0}
+body.tema-oscuro .sin-actividades,body.tema-oscuro .sin-datos{color:#8fa8b6}
