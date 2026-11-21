@@ -422,7 +422,7 @@ body.tema-oscuro .ayuda-plan{color:#ecc76d}
 .tablero-columnas::-webkit-scrollbar{height:8px}
 .tablero-columnas::-webkit-scrollbar-thumb{background:#c7d7e0;border-radius:8px}
 .tablero-columnas::-webkit-scrollbar-track{background:transparent}
-.tablero-columna{display:flex;flex-direction:column;min-width:0;border:1px solid #dfeaf0;border-radius:12px;background:#f8fafb;padding:14px;scroll-snap-align:start;overflow:hidden}
+.tablero-columna{display:flex;flex-direction:column;min-width:0;border:1px solid #dfeaf0;border-radius:12px;background:#f2f6f8;padding:16px;scroll-snap-align:start;overflow:hidden}
 .tablero-columna-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 0 10px;border-bottom:1px solid #eef4f8;margin-bottom:12px}
 .tablero-columna-cab h3{display:flex;align-items:center;gap:8px;margin:0;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#4a6274}
 .tablero-columna-cab h3::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px rgba(0,124,130,.12)}
@@ -433,11 +433,11 @@ body.tema-oscuro .ayuda-plan{color:#ecc76d}
 .materia-card:focus-visible{outline:none;box-shadow:inset 0 0 0 2px #e3ae48}
 .materia-card.arrastrando{opacity:.55;transform:scale(.98)}
 .materia-card.estado-disponible{border-color:#dbe6ec}
-.materia-card.estado-aprobada{border-color:#c9e6d8;background:#f8fdfa}
-.materia-card.estado-matriculada{border-color:#c6e7e4;background:#f6fcfb}
+.materia-card.estado-aprobada{border-color:#c9e6d8}
+.materia-card.estado-matriculada{border-color:#c6e7e4}
 .materia-card.en-carrito{border:1px solid var(--teal);background:#e9f6f4;box-shadow:inset 0 0 0 1px rgba(0,124,130,.16)}
-.materia-card.cruce{border-color:#c0392b;box-shadow:0 0 0 2px rgba(192,57,43,.2)}
-.materia-card.estado-bloqueada{border:1px dotted #b7c6d0;background:#f3f6f8;color:#46606f;cursor:not-allowed;box-shadow:none}
+.materia-card.cruce{border-color:#c0392b;box-shadow:inset 0 0 0 2px rgba(192,57,43,.25)}
+.materia-card.estado-bloqueada{border:1px dotted #b7c6d0;background:#fbfcfd;color:#46606f;cursor:not-allowed;box-shadow:none}
 .materia-card.estado-bloqueada:hover{transform:none;border-color:#b7c6d0;box-shadow:none}
 .materia-card.estado-bloqueada>*{opacity:.82}
 .materia-card.estado-bloqueada .materia-card-top{opacity:1}
@@ -517,8 +517,8 @@ body.tema-oscuro .tablero-columna-cab h3::before{background:#4fc3c9;box-shadow:0
 body.tema-oscuro .tablero-columna-cab .count{background:#16394c;border-color:#2a4a5e;color:#9db4c0}
 body.tema-oscuro .materia-card{background:#133145;border-color:#2f5a6e;box-shadow:none}
 body.tema-oscuro .materia-card:not(.estado-bloqueada):hover{border-color:#4fc3c9;background:#14424b}
-body.tema-oscuro .materia-card.estado-aprobada{background:#12352a;border-color:#2f6a4c}
-body.tema-oscuro .materia-card.estado-matriculada{background:#12414a;border-color:#2a5f66}
+body.tema-oscuro .materia-card.estado-aprobada{background:#133145;border-color:#2f6a4c}
+body.tema-oscuro .materia-card.estado-matriculada{background:#133145;border-color:#2a5f66}
 body.tema-oscuro .materia-card.estado-bloqueada{background:#0a1c28;border:1px dotted #5c7484;color:#a9c2cf;box-shadow:none}
 body.tema-oscuro .materia-card.estado-bloqueada:hover{border-color:#5c7484;box-shadow:none}
 body.tema-oscuro .materia-card.estado-bloqueada .materia-card-nombre{color:#c3d5e0}
@@ -526,7 +526,7 @@ body.tema-oscuro .materia-card.estado-bloqueada .materia-dato-val{color:#a9c2cf}
 body.tema-oscuro .materia-card-candado{background:#3b1219;border-color:#5c2a33;color:#ff9299}
 body.tema-oscuro .materia-card.estado-bloqueada .materia-card-cta{background:#1c3d52;border-color:#2a4a5e;color:#a9c2cf}
 body.tema-oscuro .materia-card.en-carrito{border-color:#4fc3c9;background:#12414a;box-shadow:inset 0 0 0 1px rgba(79,195,201,.18)}
-body.tema-oscuro .materia-card.cruce{border-color:#ff9299;box-shadow:0 0 0 2px rgba(255,146,153,.24)}
+body.tema-oscuro .materia-card.cruce{border-color:#ff9299;box-shadow:inset 0 0 0 2px rgba(255,146,153,.25)}
 body.tema-oscuro .materia-card-nombre{color:#e6f1f7}
 body.tema-oscuro .materia-card-creditos{color:#9db4c0}
 body.tema-oscuro .materia-dato-et{color:#7e97a6}
