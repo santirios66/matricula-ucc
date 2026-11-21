@@ -510,16 +510,17 @@ body.tema-oscuro .vista-switch button.activo{background:#1c3d52;color:#8ce4d8;bo
 body.tema-oscuro .vista-tablero{background:#0b2130;border-color:#23414f}
 body.tema-oscuro .tablero-columnas{scrollbar-color:#3a5a6d transparent}
 body.tema-oscuro .tablero-columnas::-webkit-scrollbar-thumb{background:#3a5a6d}
-body.tema-oscuro .tablero-columna{background:#0e2837;border-color:#2c5163;box-shadow:none}
+body.tema-oscuro .tablero-columna{background:#0e2837;border-color:#2c5163;box-shadow:none;padding:16px}
+body.tema-oscuro .tablero-cards{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;width:100%}
 body.tema-oscuro .tablero-columna-cab{border-bottom-color:#23414f}
 body.tema-oscuro .tablero-columna-cab h3{color:#9db4c0}
 body.tema-oscuro .tablero-columna-cab h3::before{background:#4fc3c9;box-shadow:0 0 0 3px rgba(79,195,201,.14)}
 body.tema-oscuro .tablero-columna-cab .count{background:#16394c;border-color:#2a4a5e;color:#9db4c0}
-body.tema-oscuro .materia-card{background:#133145;border-color:#2f5a6e;box-shadow:none}
+body.tema-oscuro .materia-card{background:#133145;border-color:#2f5a6e;box-shadow:none;width:100%;max-width:100%;box-sizing:border-box;overflow:hidden}
 body.tema-oscuro .materia-card:not(.estado-bloqueada):hover{border-color:#4fc3c9;background:#14424b}
 body.tema-oscuro .materia-card.estado-aprobada{background:#133145;border-color:#2f6a4c}
 body.tema-oscuro .materia-card.estado-matriculada{background:#133145;border-color:#2a5f66}
-body.tema-oscuro .materia-card.estado-bloqueada{background:#0a1c28;border:1px dotted #5c7484;color:#a9c2cf;box-shadow:none}
+body.tema-oscuro .materia-card.estado-bloqueada{background:#0a1c28;border:1px dotted #5c7484;color:#a9c2cf;box-shadow:none;width:100%;max-width:100%}
 body.tema-oscuro .materia-card.estado-bloqueada:hover{border-color:#5c7484;box-shadow:none}
 body.tema-oscuro .materia-card.estado-bloqueada .materia-card-nombre{color:#c3d5e0}
 body.tema-oscuro .materia-card.estado-bloqueada .materia-dato-val{color:#a9c2cf}
