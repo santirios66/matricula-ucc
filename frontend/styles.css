@@ -629,3 +629,7 @@ body.tema-oscuro .estado-reprobada .materia-card-estado{color:#ff9299}
 body.tema-oscuro .estado-sin-nota .estado-punto{background:#8a99a5}
 body.tema-oscuro .estado-sin-nota .materia-card-estado{color:#9db4c0}
 @media(max-width:760px){.matricula-guardada-cuerpo{padding:0 18px 18px}.matricula-guardada-cards{grid-template-columns:1fr}.matricula-guardada-acciones{align-items:stretch;flex-direction:column}.selector-periodo{width:100%;justify-content:space-between}.selector-periodo select{flex:1;min-width:0}}
+
+/* ====== Resumen: titulos de tarjetas en negrilla ====== */
+.stat>span:first-child{font-weight:700;font-size:14px}
+.help h3{font-weight:700}
