@@ -633,3 +633,9 @@ body.tema-oscuro .estado-sin-nota .materia-card-estado{color:#9db4c0}
 /* ====== Resumen: titulos de tarjetas en negrilla ====== */
 .stat>span:first-child{font-weight:700;font-size:14px}
 .help h3{font-weight:700}
+
+/* ====== Encabezado: textos pequenos legibles ====== */
+header>span:first-child{font-weight:600}
+#breadcrumb{font-weight:600}
+.eyebrow{font-weight:700}
+#subtitle{font-weight:500;font-size:15px}
