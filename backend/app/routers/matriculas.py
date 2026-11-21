@@ -311,7 +311,10 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
     conn = obtener_conexion()
     try:
         with conn.cursor() as cur:
-            # 0. El periodo debe existir y estar vigente
+            # 0. El periodo debe existir. La ventana se rige por fecha_inicio:
+            # antes de fecha_inicio se permite; desde fecha_inicio hasta
+            # fecha_fin responde 409 (paso 1b); despues de fecha_fin responde
+            # 422 por estar fuera del rango de matricula.
             cur.execute(
                 "SELECT fecha_inicio, fecha_fin FROM periodos WHERE periodo = %s",
                 (periodo,),
@@ -324,11 +327,11 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                 )
             fecha_inicio, fecha_fin = fila_periodo
             hoy = date.today()
-            if not (fecha_inicio <= hoy <= fecha_fin):
+            if hoy > fecha_fin:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
-                        f"El periodo '{periodo}' está fuera del rango de matrícula "
+                        f"El periodo '{periodo}' esta fuera del rango de matricula "
                         f"({fecha_inicio} a {fecha_fin}); hoy es {hoy}"
                     ),
                 )
@@ -346,11 +349,9 @@ def crear_matriculas_lote(lote: MatriculaLoteCreate, sesion: dict = Depends(aute
                     detail=f"No existe el estudiante con cédula '{cedula}'",
                 )
             id_programa, nombre_programa = fila_estudiante
-            # 1b. Ventana de matricula: solo se puede matricular antes de fecha_inicio.
-            # Desde fecha_inicio el periodo ya empezo y se bloquea con 409.
-            # (El check de rango completo fecha_inicio..fecha_fin ya ocurrio arriba
-            # para el caso de periodo vencido / fuera de rango; aqui refinamos
-            # la restriccion de pre-inicio.)
+            # 1b. Ventana de matricula: antes de fecha_inicio se permite;
+            # desde fecha_inicio el periodo ya empezo y se bloquea con 409.
+            # Despues de fecha_fin el paso 0 ya respondio 422.
             if hoy >= fecha_inicio:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
