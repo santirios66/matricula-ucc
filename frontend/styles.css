@@ -591,3 +591,41 @@ body.tema-oscuro .chip.estado-aprobada{background:#12352a;color:#8fd8b4}
 body.tema-oscuro .chip.estado-reprobada{background:#3b1219;color:#ff9299}
 body.tema-oscuro .chip.estado-sin-nota{background:#3b2f12;color:#ecc76d}
 @media(max-width:760px){.stats-registro{grid-template-columns:1fr}.registro-top{padding:18px;align-items:stretch}.registro-select{width:100%;justify-content:space-between}.registro-select select{flex:1;min-width:0}}
+
+/* ====== Estudiante: Mi matrícula del periodo (guardada) ====== */
+.matricula-guardada-top{flex-wrap:wrap;row-gap:12px}
+.selector-periodo{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#5c7080;flex:0 0 auto}
+.selector-periodo select{min-width:170px;max-width:240px;padding:9px 12px;border:1px solid #cfdce4;border-radius:8px;background:#fff;color:#183448;font-size:13px}
+.matricula-guardada-cuerpo{padding:0 26px 24px}
+.matricula-guardada-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.matricula-guardada .materia-card{cursor:default}
+.matricula-guardada .materia-card:hover{transform:none;border-color:#d3e2ec;background:#ffffff;box-shadow:0 1px 2px rgba(16,44,64,.06)}
+.btn-quitar-materia{background:#fdeeee;color:#b02a37;border:1px solid #f0d4d4;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-quitar-materia:hover{background:#b02a37;border-color:#b02a37;color:#fff;filter:none}
+.matricula-guardada-acciones{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:16px;padding-top:14px;border-top:1px dashed #d7e4ea}
+.btn-agregar-materia{padding:9px 14px;font-size:12.5px}
+.btn-eliminar-matricula{background:#fdeeee;color:#b02a37;border:1px solid #f0d4d4;padding:9px 14px;font-size:12.5px;font-weight:700}
+.btn-eliminar-matricula:hover{background:#b02a37;border-color:#b02a37;color:#fff;filter:none}
+.matricula-guardada-pista{flex-basis:100%;margin:0;font-size:11.5px;color:#718391}
+.estado-cursando .estado-punto{background:#0f8f96}
+.estado-cursando .materia-card-estado{color:#0f6b70}
+.estado-reprobada .estado-punto{background:#c0392b}
+.estado-reprobada .materia-card-estado{color:#b02a37}
+.estado-sin-nota .estado-punto{background:#8a99a5}
+.estado-sin-nota .materia-card-estado{color:#5c7080}
+body.tema-oscuro .selector-periodo{color:#9db4c0}
+body.tema-oscuro .selector-periodo select{background:#0f2a3b;border-color:#2a4a5e;color:#d9e6ee}
+body.tema-oscuro .matricula-guardada .materia-card:hover{border-color:#2f5a6e;background:#133145;box-shadow:none}
+body.tema-oscuro .btn-quitar-materia{background:#3b1219;border-color:#5c2a33;color:#ff9299}
+body.tema-oscuro .btn-quitar-materia:hover{background:#b02a37;border-color:#b02a37;color:#fff}
+body.tema-oscuro .matricula-guardada-acciones{border-top-color:#23414f}
+body.tema-oscuro .btn-eliminar-matricula{background:#3b1219;border-color:#5c2a33;color:#ff9299}
+body.tema-oscuro .btn-eliminar-matricula:hover{background:#b02a37;border-color:#b02a37;color:#fff}
+body.tema-oscuro .matricula-guardada-pista{color:#8fa8b6}
+body.tema-oscuro .estado-cursando .estado-punto{background:#4fc3c9}
+body.tema-oscuro .estado-cursando .materia-card-estado{color:#7fd8cc}
+body.tema-oscuro .estado-reprobada .estado-punto{background:#ff9299}
+body.tema-oscuro .estado-reprobada .materia-card-estado{color:#ff9299}
+body.tema-oscuro .estado-sin-nota .estado-punto{background:#8a99a5}
+body.tema-oscuro .estado-sin-nota .materia-card-estado{color:#9db4c0}
+@media(max-width:760px){.matricula-guardada-cuerpo{padding:0 18px 18px}.matricula-guardada-cards{grid-template-columns:1fr}.matricula-guardada-acciones{align-items:stretch;flex-direction:column}.selector-periodo{width:100%;justify-content:space-between}.selector-periodo select{flex:1;min-width:0}}
