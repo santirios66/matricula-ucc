@@ -4,6 +4,7 @@ import { post, setSesion, setClaveSesion, clearSesion } from './api/client';
 import Login from './components/Login';
 import RecoverPassword from './components/RecoverPassword';
 import Resumen from './views/Resumen';
+import Matricular from './views/Matricular';
 
 type Vista = 'login' | 'recuperar' | 'app';
 
@@ -118,7 +119,13 @@ export default function App() {
         </header>
 
         <main className="app-content">
-          <Resumen rol={sesion.rol} cedula={sesion.id_persona} onNavegar={setSeccion} />
+          {seccion === 'resumen' && <Resumen rol={sesion.rol} cedula={sesion.id_persona} onNavegar={setSeccion} />}
+          {seccion === 'matricular' && sesion.rol === 'Estudiante' && <Matricular cedula={sesion.id_persona!} />}
+          {seccion !== 'resumen' && seccion !== 'matricular' && (
+            <div className="stat-card" style={{ textAlign: 'center', padding: 48 }}>
+              <span className="section-sub">Vista "{seccionActual?.label}" en construcción. Pronto disponible.</span>
+            </div>
+          )}
         </main>
 
         <footer className="app-footer">
