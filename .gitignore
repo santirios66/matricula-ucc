@@ -6,3 +6,5 @@ __pycache__/
 *.pdf
 backend/archivos/
 node_modules/
+frontend-react/node_modules/
+frontend-react/dist/
