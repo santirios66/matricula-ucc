@@ -200,6 +200,37 @@ body::before {
   line-height: 1.6;
 }
 
+/* Creditos del equipo */
+.login-credits {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-3);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.login-credits b {
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.login-credits-ucc {
+  flex-basis: 100%;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--teal);
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
 /* ====== Recuperacion ====== */
 .recover-card {
   width: 100%;
@@ -525,6 +556,92 @@ tbody tr:hover { background: var(--surface-2); }
   height: 100%;
   border-radius: 2px;
   transition: width .5s ease;
+}
+
+/* ====== Materias en miniatura ====== */
+.materias-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.materia-mini {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 3px solid var(--teal-border);
+}
+
+.materia-mini-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.materia-mini-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.materia-mini-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.materia-nota {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.materia-nota.reprobada { color: var(--danger); }
+
+/* ====== Acciones rapidas ====== */
+.acciones-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.accion-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color .2s, background .2s, transform .15s;
+  text-align: center;
+}
+
+.accion-card:hover {
+  border-color: var(--teal-border);
+  background: var(--teal-soft);
+  transform: translateY(-2px);
+}
+
+.accion-icon {
+  font-size: 24px;
+  color: var(--teal);
+  margin-bottom: 4px;
+}
+
+.accion-texto {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.accion-sub {
+  font-size: 11px;
+  color: var(--text-3);
 }
 
 /* ====== Footer con creditos ====== */

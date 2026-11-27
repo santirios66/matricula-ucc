@@ -118,7 +118,7 @@ export default function App() {
         </header>
 
         <main className="app-content">
-          <Resumen rol={sesion.rol} cedula={sesion.id_persona} />
+          <Resumen rol={sesion.rol} cedula={sesion.id_persona} onNavegar={setSeccion} />
         </main>
 
         <footer className="app-footer">

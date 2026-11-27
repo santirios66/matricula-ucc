@@ -79,6 +79,14 @@ export default function Login({ onLogin, onRecover }: LoginProps) {
         <button className="btn-ghost" onClick={onRecover}>
           ¿Olvidaste tu clave?
         </button>
+
+        <div className="login-credits">
+          <span>Desarrollado por</span>
+          <b>Santiago Patino Rios</b>
+          <span>·</span>
+          <b>Jairo Enrique Arboleda</b>
+          <span className="login-credits-ucc">Ingenieria de Sistemas · UCC Sede Cali</span>
+        </div>
       </div>
     </div>
   );

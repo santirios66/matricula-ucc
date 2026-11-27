@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { getAuth, get } from '../api/client';
-import type { Rol, Nota, Tarea, Estudiante, Materia, Periodo } from '../api/types';
+import type { Rol, Nota, Tarea, Estudiante, Materia, Periodo, Matricula } from '../api/types';
 
 interface ResumenProps {
   rol: Rol;
   cedula: string | null;
+  onNavegar?: (seccion: string) => void;
 }
 
 interface Stats {
@@ -27,10 +28,11 @@ const formatoFecha = (iso: string | null | undefined): string => {
   }
 };
 
-export default function Resumen({ rol, cedula }: ResumenProps) {
+export default function Resumen({ rol, cedula, onNavegar }: ResumenProps) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [nombre, setNombre] = useState('');
   const [tareaProxima, setTareaProxima] = useState<Tarea | null>(null);
+  const [materiasActuales, setMateriasActuales] = useState<{ id_materia: string; nombre: string; creditos: number; nota: number | null }[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -56,6 +58,23 @@ export default function Resumen({ rol, cedula }: ResumenProps) {
             .slice()
             .sort((a, b) => new Date(a.fecha_limite).getTime() - new Date(b.fecha_limite).getTime());
           setTareaProxima(pendientesOrdenadas[0] || null);
+          // Cargar materias actuales del periodo vigente
+          const matriculas = await getAuth<Matricula[]>('/matriculas/');
+          const todasMaterias = await get<Materia[]>('/materias/');
+          const porIdMateria = new Map(todasMaterias.map((m) => [m.id_materia, m]));
+          const materiasInfo = matriculas
+            .filter((m) => m.estado === 'Activa')
+            .map((m) => {
+              const mat = porIdMateria.get(m.id_materia);
+              const nota = notas.find((n) => n.id_matricula === m.id_matricula);
+              return {
+                id_materia: m.id_materia,
+                nombre: mat?.nombre_curso || m.id_materia,
+                creditos: m.creditos,
+                nota: nota?.definitiva != null ? Number(nota.definitiva) : null,
+              };
+            });
+          setMateriasActuales(materiasInfo);
           setStats({
             tareas: tareas.length, pendientes: pendientes.length,
             entregadas: entregadas.length, notas: notas.length,
@@ -228,6 +247,106 @@ export default function Resumen({ rol, cedula }: ResumenProps) {
           </div>
         </div>
       )}
+
+      {/* Materias actuales del estudiante */}
+      {rol === 'Estudiante' && (
+        <div>
+          <h3 className="section-title" style={{ fontSize: 16 }}>Mis materias del periodo</h3>
+          <div className="materias-grid">
+            {materiasActuales.map((m) => (
+              <div key={m.id_materia} className="stat-card materia-mini">
+                <div className="materia-mini-top">
+                  <span className="chip teal">{m.id_materia}</span>
+                  <span className="section-sub">{m.creditos} créditos</span>
+                </div>
+                <div className="materia-mini-nombre">{m.nombre}</div>
+                <div className="materia-mini-footer">
+                  <span className={`materia-nota ${(m.nota ?? 0) >= 3 || m.nota == null ? '' : 'reprobada'}`}>
+                    {m.nota != null ? m.nota.toFixed(1) : '—'}
+                  </span>
+                  <span className={`chip ${m.nota == null ? '' : m.nota >= 3 ? 'green' : 'red'}`}>
+                    {m.nota == null ? 'Sin nota' : m.nota >= 3 ? 'Aprobado' : 'Reprobado'}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {materiasActuales.length === 0 && (
+              <div className="stat-card" style={{ gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
+                <span className="section-sub">No tienes materias matriculadas en el periodo actual.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Acciones rapidas */}
+      <div>
+        <h3 className="section-title" style={{ fontSize: 16 }}>Acciones rápidas</h3>
+        <div className="acciones-grid">
+          {rol === 'Estudiante' && (
+            <>
+              <button className="accion-card" onClick={() => onNavegar?.('matricular')}>
+                <span className="accion-icon">✓</span>
+                <span className="accion-texto">Matricular</span>
+                <span className="accion-sub">Arma tu horario</span>
+              </button>
+              <button className="accion-card" onClick={() => onNavegar?.('registro')}>
+                <span className="accion-icon">◫</span>
+                <span className="accion-texto">Registro académico</span>
+                <span className="accion-sub">Promedios y notas</span>
+              </button>
+              <button className="accion-card" onClick={() => onNavegar?.('mistareas')}>
+                <span className="accion-icon">❑</span>
+                <span className="accion-texto">Mis tareas</span>
+                <span className="accion-sub">Entregas pendientes</span>
+              </button>
+              <button className="accion-card" onClick={() => onNavegar?.('docs')}>
+                <span className="accion-icon">⇩</span>
+                <span className="accion-texto">Documentos</span>
+                <span className="accion-sub">Recibo y boletín PDF</span>
+              </button>
+            </>
+          )}
+          {rol === 'Profesor' && (
+            <>
+              <button className="accion-card" onClick={() => onNavegar?.('ingresarnotas')}>
+                <span className="accion-icon">✎</span>
+                <span className="accion-texto">Ingresar notas</span>
+                <span className="accion-sub">Califica a tus estudiantes</span>
+              </button>
+              <button className="accion-card" onClick={() => onNavegar?.('tareas')}>
+                <span className="accion-icon">❑</span>
+                <span className="accion-texto">Tareas</span>
+                <span className="accion-sub">Crear y revisar</span>
+              </button>
+              <button className="accion-card" onClick={() => onNavegar?.('reportes')}>
+                <span className="accion-icon">⇩</span>
+                <span className="accion-texto">Reportes</span>
+                <span className="accion-sub">PDF de tus estudiantes</span>
+              </button>
+            </>
+          )}
+          {rol === 'Administrador' && (
+            <>
+              <button className="accion-card" onClick={() => onNavegar?.('periodos')}>
+                <span className="accion-icon">⏱</span>
+                <span className="accion-texto">Periodos</span>
+                <span className="accion-sub">Ventanas de matrícula</span>
+              </button>
+              <button className="accion-card" onClick={() => onNavegar?.('materias')}>
+                <span className="accion-icon">▥</span>
+                <span className="accion-texto">Materias</span>
+                <span className="accion-sub">Catálogo completo</span>
+              </button>
+              <button className="accion-card" onClick={() => onNavegar?.('cuentas')}>
+                <span className="accion-icon">👤</span>
+                <span className="accion-texto">Cuentas</span>
+                <span className="accion-sub">Crear y restablecer</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </>
   );
 }
