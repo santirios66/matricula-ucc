@@ -21,6 +21,8 @@ export default function Matricular({ cedula }: MatricularProps) {
   const [materias, setMaterias] = useState<MateriaDisponible[]>([]);
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [carrito, setCarrito] = useState<Set<string>>(new Set());
+  const [arrastrando, setArrastrando] = useState(false);
+  const [sobreCarrito, setSobreCarrito] = useState(false);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [cargando, setCargando] = useState(true);
@@ -81,6 +83,33 @@ export default function Matricular({ cedula }: MatricularProps) {
     setAviso('');
   };
 
+  // ====== Drag & Drop ======
+  const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, id: string) => {
+    const m = porId.get(id);
+    if (!m || m.bloqueada) { e.preventDefault(); return; }
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'copy';
+    setArrastrando(true);
+  };
+
+  const handleDragEnd = () => { setArrastrando(false); setSobreCarrito(false); };
+
+  const handleDropEnCarrito = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setSobreCarrito(false);
+    setArrastrando(false);
+    const id = e.dataTransfer.getData('text/plain');
+    if (id) toggleMateria(id);
+  };
+
+  const handleDragOverCarrito = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setSobreCarrito(true);
+  };
+
+  const handleDragLeaveCarrito = () => setSobreCarrito(false);
+
   const confirmar = async () => {
     if (!periodoAbierto || !enRango || seleccionadas.length === 0) return;
     setConfirmando(true);
@@ -135,10 +164,13 @@ export default function Matricular({ cedula }: MatricularProps) {
                     const cruza = seleccionadas.some((s) => s.id_materia !== m.id_materia && hayCruce(s, m));
                     return (
                       <button
-                        key={m.id_materia}
-                        className={`materia-card ${enCarrito ? 'en-carrito' : ''} ${m.bloqueada ? 'bloqueada' : ''} ${cruza ? 'cruce' : ''}`}
+                        key={`${m.id_materia}-${sem}`}
+                        className={`materia-card ${enCarrito ? 'en-carrito' : ''} ${m.bloqueada ? 'bloqueada' : ''} ${cruza ? 'cruce' : ''} ${arrastrando && !enCarrito && !m.bloqueada ? 'arrastrable' : ''}`}
                         onClick={() => toggleMateria(m.id_materia)}
                         disabled={m.bloqueada}
+                        draggable={!m.bloqueada}
+                        onDragStart={(e) => handleDragStart(e, m.id_materia)}
+                        onDragEnd={handleDragEnd}
                       >
                         <div className="materia-card-top">
                           <span className="chip teal">{m.id_materia}</span>
@@ -167,7 +199,12 @@ export default function Matricular({ cedula }: MatricularProps) {
         </div>
 
         {/* Carrito lateral */}
-        <aside className="carrito-panel">
+        <aside
+          className={`carrito-panel ${sobreCarrito ? 'drop-activo' : ''}`}
+          onDrop={handleDropEnCarrito}
+          onDragOver={handleDragOverCarrito}
+          onDragLeave={handleDragLeaveCarrito}
+        >
           <div className="carrito-header">
             <h3>Tu carrito</h3>
             <span className={`carrito-total ${enRango ? 'ok' : 'fuera'}`}>
@@ -184,7 +221,12 @@ export default function Matricular({ cedula }: MatricularProps) {
             />
           </div>
           <div className="carrito-lista">
-            {seleccionadas.length === 0 && (
+            {sobreCarrito && (
+              <div className="carrito-drop-mensaje">
+                Suelta aqui para agregar
+              </div>
+            )}
+            {seleccionadas.length === 0 && !sobreCarrito && (
               <p className="section-sub" style={{ textAlign: 'center', padding: '24px 0' }}>
                 Haz clic en una materia para agregarla.
               </p>
