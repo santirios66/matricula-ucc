@@ -271,3 +271,63 @@ def sugerencias_momento(id_materia: str = Path(..., min_length=1), sesion: dict 
             return respuesta
     finally:
         conn.close()
+
+
+# ====== PUT /notas/{id_nota}: editar una nota existente ======
+
+class NotaUpdate(BaseModel):
+    nota1: float = Field(..., ge=0, le=5)
+    nota2: float = Field(..., ge=0, le=5)
+    nota3: float = Field(..., ge=0, le=5)
+
+
+@router.put("/{id_nota}", status_code=status.HTTP_200_OK)
+def actualizar_nota(id_nota: str, cambios: NotaUpdate, sesion: dict = Depends(autenticar)):
+    """Edita las tres notas de una nota existente y recalcula la definitiva."""
+    id_nota = id_nota.strip()
+    conn = obtener_conexion()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT n.id_matricula, n.id_materia, mat.id_profesor "
+                "FROM notas n JOIN materias mat ON mat.id_materia = n.id_materia "
+                "WHERE n.id_nota = %s",
+                (id_nota,),
+            )
+            fila = cur.fetchone()
+            if fila is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No existe la nota '{id_nota}'",
+                )
+            id_matricula, id_materia, id_profesor = fila
+            if sesion["rol"] == ROL_ESTUDIANTE:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Un estudiante no puede editar notas",
+                )
+            if sesion["rol"] == ROL_PROFESOR and id_profesor != sesion["id_persona"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"La materia '{id_materia}' no es tuya; solo puedes editar notas en tus materias",
+                )
+            definitiva = round((cambios.nota1 + cambios.nota2 + cambios.nota3) / 3, 2)
+            estado = "Aprobado" if definitiva >= 3.0 else "Reprobado"
+            cur.execute(
+                "UPDATE notas SET nota1 = %s, nota2 = %s, nota3 = %s, definitiva = %s, estado = %s "
+                "WHERE id_nota = %s",
+                (cambios.nota1, cambios.nota2, cambios.nota3, definitiva, estado, id_nota),
+            )
+        conn.commit()
+        return {
+            "id_nota": id_nota,
+            "id_matricula": id_matricula,
+            "id_materia": id_materia,
+            "nota1": cambios.nota1,
+            "nota2": cambios.nota2,
+            "nota3": cambios.nota3,
+            "definitiva": definitiva,
+            "estado": estado,
+        }
+    finally:
+        conn.close()

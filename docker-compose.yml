@@ -1,0 +1,49 @@
+# Matricula UCC: docker compose up y todo corre.
+# PostgreSQL + API FastAPI + Portal React (produccion con nginx).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: matricula-db
+    environment:
+      POSTGRES_DB: Matricula
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-matricula2026}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d Matricula"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    container_name: matricula-api
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: Matricula
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-matricula2026}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  portal:
+    build: ./frontend-react
+    container_name: matricula-portal
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

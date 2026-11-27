@@ -1,11 +1,19 @@
 # ==========================================
 # ARCHIVO: routers/auth.py
-# FUNCIÓN: Autenticación (login, cambiar-clave, restablecer-clave).
+# FUNCIÓN: Autenticación (login, cambiar-clave, restablecer-clave, rate limit).
 # Reutiliza seguridad.py y db_postgres.py; no duplica su lógica.
 # ==========================================
 
+import hashlib
+import secrets
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+
+# Rate limit de login: {usuario: {"contador": n, "hasta": datetime}}
+# En memoria; suficiente para un proceso de API.
+_limiter: dict = {}
 
 try:
     from app.seguridad import crear_hash, generar_clave_temporal, verificar_clave
@@ -13,6 +21,7 @@ try:
     from app.seguridad_api import require_admin
     from app.database import obtener_conexion
     from app.correos import enviar_correo
+    from app.jwt_api import generar_token
 except ImportError:
     from seguridad import crear_hash, generar_clave_temporal, verificar_clave
     from db_postgres import actualizar_clave, existe, insertar, obtener_usuario
@@ -54,17 +63,35 @@ def login(datos: LoginRequest):
     usuario = datos.usuario.strip()
     clave = datos.clave.strip()
 
+    # Rate limit: 5 intentos fallidos por usuario en 10 minutos -> 429
+    _clave_actual = (usuario, "intentos")
+    _intentos = _limiter.get(_clave_actual, {"contador": 0, "hasta": None})
+    if _intentos["hasta"] and datetime.now() < _intentos["hasta"]:
+        restantes = (_intentos["hasta"] - datetime.now()).seconds // 60 + 1
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Demasiados intentos fallidos. Espera {restantes} minuto(s) o restablece tu clave.",
+        )
+
     fila = obtener_usuario(usuario)
     if fila is None or not verificar_clave(clave, fila[1], fila[2]):
+        _intentos["contador"] = _intentos.get("contador", 0) + 1
+        if _intentos["contador"] >= 5:
+            _intentos["hasta"] = datetime.now() + timedelta(minutes=10)
+            _intentos["contador"] = 0
+        _limiter[_clave_actual] = _intentos
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
         )
+    # Credenciales validas: limpiar el contador de intentos
+    _limiter.pop(_clave_actual, None)
     return {
         "usuario": fila[0],
         "rol": fila[3],
         "id_persona": fila[4],
         "debe_cambiar_clave": bool(fila[5]),
+        "token": generar_token(fila[0], fila[3], fila[4], clave),
     }
 
 
@@ -165,10 +192,6 @@ def crear_cuenta_profesor(datos: CuentaProfesorRequest, _admin: dict = Depends(r
 
 
 # ====== Recuperacion de clave por correo (migracion V11) ======
-
-import hashlib
-import secrets
-from datetime import datetime, timedelta
 
 EXPIRACION_MINUTOS = 15
 

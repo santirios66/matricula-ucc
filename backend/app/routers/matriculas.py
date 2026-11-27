@@ -719,6 +719,11 @@ def eliminar_matricula(id_matricula: str, sesion: dict = Depends(autenticar)):
                 "DELETE FROM matriculas WHERE id_matricula = %s",
                 (id_matricula,),
             )
+            # Limpiar cabeceras de lote que quedaron sin filas asociadas
+            cur.execute(
+                "DELETE FROM matriculas_lote l WHERE NOT EXISTS ("
+                "SELECT 1 FROM matriculas m WHERE m.id_lote = l.id_lote)"
+            )
         conn.commit()
         return {"eliminado": id_matricula, "periodo": periodo_mat}
     finally:

@@ -79,11 +79,6 @@ export default function Login({ onLogin, onRecover }: LoginProps) {
         <button className="btn-ghost" onClick={onRecover}>
           ¿Olvidaste tu clave?
         </button>
-
-        <p className="login-note">
-          Tus credenciales solo viven en la memoria de esta pestaña.
-          No se guardan en el navegador ni en el código.
-        </p>
       </div>
     </div>
   );
