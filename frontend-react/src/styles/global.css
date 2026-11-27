@@ -473,11 +473,64 @@ tbody tr:hover { background: var(--surface-2); }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
 
-/* Responsive */
+/* ====== Footer con creditos ====== */
+.app-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 32px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-3);
+  background: var(--bg-2);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-footer b { color: var(--text-2); font-weight: 600; }
+.footer-team { color: var(--text-2); }
+
+/* ====== Indicador de estado (API conectada) ====== */
+.header-status {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+  margin-right: 8px;
+  animation: pulse-status 2s ease-in-out infinite;
+}
+
+@keyframes pulse-status {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+/* ====== Loading skeleton ====== */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ====== Transiciones suaves ====== */
+.sidebar-item, .btn-primary, .btn-ghost, .btn-logout, .stat-card, .chip, table tr {
+  transition: all .18s ease;
+}
+
+/* ====== Responsive ====== */
 @media (max-width: 768px) {
   .app-shell { grid-template-columns: 1fr; }
   .app-sidebar { display: none; }
   .app-content { padding: 16px; }
   .app-header { padding: 0 16px; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
+  .app-footer { padding: 12px 16px; flex-direction: column; text-align: center; }
 }

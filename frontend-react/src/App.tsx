@@ -106,6 +106,7 @@ export default function App() {
       <div className="app-main">
         <header className="app-header">
           <div className="header-left">
+            <span className="header-status" aria-hidden="true"></span>
             Portal académico <span style={{ color: 'var(--text-3)' }}>/</span>{' '}
             <b style={{ color: 'var(--text)' }}>{seccionActual?.label}</b>
           </div>
@@ -119,6 +120,14 @@ export default function App() {
         <main className="app-content">
           <Resumen rol={sesion.rol} cedula={sesion.id_persona} />
         </main>
+
+        <footer className="app-footer">
+          <span>Matricula UCC v1.0</span>
+          <span className="footer-team">
+            Desarrollado por <b>Santiago Patino Rios</b> y <b>Jairo Enrique Arboleda Trujillo</b>
+          </span>
+          <span>Ingenieria de Sistemas · UCC Sede Cali</span>
+        </footer>
       </div>
     </div>
   );
