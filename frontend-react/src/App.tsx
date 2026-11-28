@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { Sesion, Rol } from './api/types';
-import { post, setSesion, setClaveSesion, clearSesion } from './api/client';
+import { post, setSesion, setClaveSesion, clearSesion, downloadArchivo } from './api/client';
 import Login from './components/Login';
 import RecoverPassword from './components/RecoverPassword';
 import Resumen from './views/Resumen';
@@ -8,6 +8,8 @@ import Matricular from './views/Matricular';
 import Registro from './views/Registro';
 import MisNotas from './views/MisNotas';
 import MisTareas from './views/MisTareas';
+import { IngresarNotas, TareasProfesor, ReportesProfesor } from './views/ProfesorVistas';
+import { CatalogoAdmin, CuentasAdmin, type ModuloKey } from './views/AdminVistas';
 
 type Vista = 'login' | 'recuperar' | 'app';
 
@@ -41,16 +43,14 @@ const MENUS: Record<Rol, { key: string; label: string; icon: string }[]> = {
 export default function App() {
   const [vista, setVista] = useState<Vista>('login');
   const [sesion, setSesionLocal] = useState<Sesion | null>(null);
+  const [claveActiva, setClaveActiva] = useState('');
   const [seccion, setSeccion] = useState('resumen');
 
   const iniciarSesion = useCallback(async (usuario: string, clave: string) => {
     const s = await post<Sesion>('/auth/login', { usuario, clave });
-    if (s.debe_cambiar_clave) {
-      // TODO: dialogo de cambio de clave obligatorio
-      console.warn('debe_cambiar_clave: true');
-    }
     setSesion(s);
     setClaveSesion(clave);
+    setClaveActiva(clave);
     setSesionLocal(s);
     setVista('app');
     setSeccion('resumen');
@@ -58,6 +58,7 @@ export default function App() {
 
   const cerrarSesion = useCallback(() => {
     clearSesion();
+    setClaveActiva('');
     setSesionLocal(null);
     setVista('login');
   }, []);
@@ -132,12 +133,18 @@ export default function App() {
               <h2 className="section-title">Mis documentos</h2>
               <p className="section-sub">Recibo de matrícula y boletín de notas en PDF.</p>
               <div className="acciones-grid" style={{ marginTop: 20 }}>
-                <button className="accion-card" onClick={() => window.open('http://localhost:8000/pdf/matricula/' + sesion.id_persona, '_blank')}>
+                <button
+                  className="accion-card"
+                  onClick={() => downloadArchivo(`/pdf/matricula/${sesion.id_persona}`, `Recibo_Matricula_${sesion.id_persona}.pdf`)}
+                >
                   <span className="accion-icon">⇩</span>
                   <span className="accion-texto">Recibo de matrícula</span>
                   <span className="accion-sub">PDF con radicado</span>
                 </button>
-                <button className="accion-card" onClick={() => window.open('http://localhost:8000/pdf/notas/' + sesion.id_persona, '_blank')}>
+                <button
+                  className="accion-card"
+                  onClick={() => downloadArchivo(`/pdf/notas/${sesion.id_persona}`, `Reporte_Notas_${sesion.id_persona}.pdf`)}
+                >
                   <span className="accion-icon">⇩</span>
                   <span className="accion-texto">Boletín de notas</span>
                   <span className="accion-sub">PDF completo</span>
@@ -145,10 +152,13 @@ export default function App() {
               </div>
             </div>
           )}
-          {['ingresarnotas', 'tareas', 'reportes', 'facultades', 'programas', 'materias', 'profesores', 'estudiantes', 'periodos', 'cuentas'].includes(seccion) && (
-            <div className="stat-card" style={{ textAlign: 'center', padding: 48, gridColumn: '1/-1' }}>
-              <span className="section-sub">Vista "{seccionActual?.label}" — en construcción.</span>
-            </div>
+          {seccion === 'ingresarnotas' && sesion.rol === 'Profesor' && <IngresarNotas idProfesor={sesion.id_persona!} />}
+          {seccion === 'tareas' && sesion.rol === 'Profesor' && <TareasProfesor idProfesor={sesion.id_persona!} />}
+          {seccion === 'reportes' && sesion.rol === 'Profesor' && <ReportesProfesor idProfesor={sesion.id_persona!} />}
+          {(['facultades', 'programas', 'materias', 'profesores', 'estudiantes', 'periodos'] as ModuloKey[]).includes(seccion as ModuloKey) &&
+            sesion.rol === 'Administrador' && <CatalogoAdmin modulo={seccion as ModuloKey} />}
+          {seccion === 'cuentas' && sesion.rol === 'Administrador' && (
+            <CuentasAdmin usuarioAdmin={sesion.usuario} claveAdmin={claveActiva} />
           )}
         </main>
 

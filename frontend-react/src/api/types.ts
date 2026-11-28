@@ -8,6 +8,33 @@ export interface Sesion {
   rol: Rol;
   id_persona: string | null;
   debe_cambiar_clave: boolean;
+  token?: string;
+}
+
+export interface SugerenciaNota {
+  cedula: string;
+  nombre: string | null;
+  nota1: number | null;
+  nota2: number | null;
+  nota3: number | null;
+  definitiva: number | null;
+  estado: string;
+}
+
+export interface EntregaDetalle {
+  id_entrega: string;
+  cedula: string;
+  nombre: string;
+  subida_en: string;
+  comentario: string | null;
+  con_archivo: boolean;
+  calificacion: number | null;
+}
+
+export interface EntregasRespuesta {
+  entregas: EntregaDetalle[];
+  no_entregaron: { cedula: string; nombre: string }[];
+  sin_calificacion: { id_entrega: string; cedula: string; nombre: string }[];
 }
 
 // ====== Catalogos ======

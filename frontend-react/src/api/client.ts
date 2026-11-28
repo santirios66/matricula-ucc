@@ -16,8 +16,9 @@ export function setSesion(s: Sesion | null): void {
 
 export function headersAuth(): Record<string, string> {
   if (!sesion) return {};
-  // Guardamos la clave al momento del login para reenviarla en cada peticion.
-  // La clave vive solo en este modulo, nunca en localStorage ni cookies.
+  if (sesion.token) {
+    return { Authorization: `Bearer ${sesion.token}`, 'X-Usuario': sesion.usuario, 'X-Clave': _claveSesion };
+  }
   return { 'X-Usuario': sesion.usuario, 'X-Clave': _claveSesion };
 }
 
@@ -49,6 +50,7 @@ async function request<T>(
     ...(options.headers as Record<string, string>),
   };
   if (auth && sesion) {
+    if (sesion.token) headers['Authorization'] = `Bearer ${sesion.token}`;
     headers['X-Usuario'] = sesion.usuario;
     headers['X-Clave'] = _claveSesion;
   }
@@ -119,4 +121,21 @@ export async function put<T>(path: string, data: unknown, auth: boolean = true):
 // DELETE
 export async function del<T>(path: string, auth: boolean = true): Promise<T> {
   return request<T>(path, { method: 'DELETE' }, auth);
+}
+
+// Descarga de archivo autenticado (PDF o apoyo)
+export async function downloadArchivo(path: string, filename: string): Promise<void> {
+  const res = await fetch(BASE_URL + path, { headers: headersAuth() });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    const detail = (body as Record<string, unknown>)?.detail;
+    throw new ApiError(res.status, typeof detail === 'string' ? detail : `Error ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
