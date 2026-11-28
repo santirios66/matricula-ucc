@@ -5,6 +5,9 @@ import Login from './components/Login';
 import RecoverPassword from './components/RecoverPassword';
 import Resumen from './views/Resumen';
 import Matricular from './views/Matricular';
+import Registro from './views/Registro';
+import MisNotas from './views/MisNotas';
+import MisTareas from './views/MisTareas';
 
 type Vista = 'login' | 'recuperar' | 'app';
 
@@ -121,9 +124,30 @@ export default function App() {
         <main className="app-content">
           {seccion === 'resumen' && <Resumen rol={sesion.rol} cedula={sesion.id_persona} onNavegar={setSeccion} />}
           {seccion === 'matricular' && sesion.rol === 'Estudiante' && <Matricular cedula={sesion.id_persona!} />}
-          {seccion !== 'resumen' && seccion !== 'matricular' && (
-            <div className="stat-card" style={{ textAlign: 'center', padding: 48 }}>
-              <span className="section-sub">Vista "{seccionActual?.label}" en construcción. Pronto disponible.</span>
+          {seccion === 'registro' && sesion.rol === 'Estudiante' && <Registro cedula={sesion.id_persona!} />}
+          {seccion === 'misnotas' && sesion.rol === 'Estudiante' && <MisNotas cedula={sesion.id_persona!} />}
+          {seccion === 'mistareas' && sesion.rol === 'Estudiante' && <MisTareas cedula={sesion.id_persona!} />}
+          {seccion === 'docs' && sesion.rol === 'Estudiante' && (
+            <div>
+              <h2 className="section-title">Mis documentos</h2>
+              <p className="section-sub">Recibo de matrícula y boletín de notas en PDF.</p>
+              <div className="acciones-grid" style={{ marginTop: 20 }}>
+                <button className="accion-card" onClick={() => window.open('http://localhost:8000/pdf/matricula/' + sesion.id_persona, '_blank')}>
+                  <span className="accion-icon">⇩</span>
+                  <span className="accion-texto">Recibo de matrícula</span>
+                  <span className="accion-sub">PDF con radicado</span>
+                </button>
+                <button className="accion-card" onClick={() => window.open('http://localhost:8000/pdf/notas/' + sesion.id_persona, '_blank')}>
+                  <span className="accion-icon">⇩</span>
+                  <span className="accion-texto">Boletín de notas</span>
+                  <span className="accion-sub">PDF completo</span>
+                </button>
+              </div>
+            </div>
+          )}
+          {['ingresarnotas', 'tareas', 'reportes', 'facultades', 'programas', 'materias', 'profesores', 'estudiantes', 'periodos', 'cuentas'].includes(seccion) && (
+            <div className="stat-card" style={{ textAlign: 'center', padding: 48, gridColumn: '1/-1' }}>
+              <span className="section-sub">Vista "{seccionActual?.label}" — en construcción.</span>
             </div>
           )}
         </main>

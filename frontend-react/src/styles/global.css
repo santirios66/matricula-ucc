@@ -1011,6 +1011,106 @@ tbody tr:hover { background: var(--surface-2); }
 /* Materia arrastrandose (fantasma) */
 .materia-card:drag { opacity: 0.4; transform: scale(0.95) rotate(2deg); }
 
+/* ====== Registro academico, Notas y Tareas ====== */
+.registro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.registro-select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.filtros-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.actividades-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.actividad-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  gap: 10px;
+}
+
+.tareas-lista {
+  display: grid;
+  gap: 10px;
+}
+
+.tarea-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tarea-fila:hover { border-color: var(--teal-border); }
+
+.tarea-fila-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tarea-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tarea-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tarea-fila-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tarea-nota {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--teal);
+}
+
+/* ====== Optimizacion de FPS (GPU-friendly: sin blur en tarjetas repetidas, solo transform/opacity) ====== */
+.stat-card {
+  backdrop-filter: none;
+  background: var(--bg-2);
+}
+
+.materia-card, .accion-card, .carrito-item, .sidebar-item, .btn-primary, .btn-ghost, .btn-logout {
+  will-change: transform;
+  transition: transform .14s ease, border-color .14s ease, background-color .14s ease, color .14s ease;
+}
+
 /* ====== Footer con creditos ====== */
 .app-footer {
   display: flex;

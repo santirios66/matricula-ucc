@@ -32,7 +32,7 @@ export default function Resumen({ rol, cedula, onNavegar }: ResumenProps) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [nombre, setNombre] = useState('');
   const [tareaProxima, setTareaProxima] = useState<Tarea | null>(null);
-  const [materiasActuales, setMateriasActuales] = useState<{ id_materia: string; nombre: string; creditos: number; nota: number | null }[]>([]);
+  const [materiasActuales, setMateriasActuales] = useState<{ id_matricula: string; id_materia: string; nombre: string; creditos: number; nota: number | null }[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -68,6 +68,7 @@ export default function Resumen({ rol, cedula, onNavegar }: ResumenProps) {
               const mat = porIdMateria.get(m.id_materia);
               const nota = notas.find((n) => n.id_matricula === m.id_matricula);
               return {
+                id_matricula: m.id_matricula,
                 id_materia: m.id_materia,
                 nombre: mat?.nombre_curso || m.id_materia,
                 creditos: m.creditos,
@@ -254,7 +255,7 @@ export default function Resumen({ rol, cedula, onNavegar }: ResumenProps) {
           <h3 className="section-title" style={{ fontSize: 16 }}>Mis materias del periodo</h3>
           <div className="materias-grid">
             {materiasActuales.map((m) => (
-              <div key={m.id_materia} className="stat-card materia-mini">
+              <div key={m.id_matricula} className="stat-card materia-mini">
                 <div className="materia-mini-top">
                   <span className="chip teal">{m.id_materia}</span>
                   <span className="section-sub">{m.creditos} créditos</span>
